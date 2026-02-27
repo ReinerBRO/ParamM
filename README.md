@@ -19,7 +19,7 @@ export TOGETHER_API_KEY=<your key>
 
 ## Usage
 
-See `run_code.sh` for example commands.
+See `run_code.sh` for example commands. For ParamAgent, first-stage result corresponds to ParamAgent, while second-stage result corresponds to ParamAgent-plus, where memory bank is used to augment the reasoning ability.
 
 ## ParamMem
 
