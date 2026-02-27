@@ -21,11 +21,11 @@ export TOGETHER_API_KEY=<your key>
 
 See `run_code.sh` for example commands.
 
-## ParamMem (Pitfall Reflections)
+## ParamMem (Reflections)
 
 In `benchmarks/code_pitfalls/`, we provide model-based reflections from the ParamMem fine-tuned using a GPT-4o-mini labelled auxiliary dataset.
 
-From [https://huggingface.co/TianJun1/lora-llama3-8b-code](https://huggingface.co/TianJun1/lora-llama3-8b-code), you can download the ParamMem LoRA adapter that uses a Llama-3.1-8B labelled dataset to try self-improving pitfall generation.
+From [https://huggingface.co/TianJun1/lora-llama3-8b-code](https://huggingface.co/TianJun1/lora-llama3-8b-code), you can download the ParamMem LoRA adapter that uses a Llama-3.1-8B labelled dataset to try self-improving reflection generation.
 
 Use `LoRA_Llama3_Code_multigpu_inference.py` to run inference with the LoRA adapter:
 ```bash
@@ -37,3 +37,6 @@ python LoRA_Llama3_Code_multigpu_inference.py \
     --num_gpus 1 --batch_size 1
 ```
 
+## Acknowledgements
+
+Part of the codebase is adapted from [Diversity of Thoughts (DoT)](https://openreview.net/forum?id=ZsP3YbYeE9) (Lingam et al., ICLR 2025). We thank the authors for their open-source contribution.
