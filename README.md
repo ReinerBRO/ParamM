@@ -21,7 +21,7 @@ export TOGETHER_API_KEY=<your key>
 
 See `run_code.sh` for example commands.
 
-## ParamMem (Reflections)
+## ParamMem
 
 In `benchmarks/code_pitfalls/`, we provide model-based reflections from the ParamMem fine-tuned using a GPT-4o-mini labelled auxiliary dataset.
 
