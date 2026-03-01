@@ -1,0 +1,2194 @@
+FlashMem: Distilling Intrinsic Latent Memory via Computation Reuse
+Yubo Hou1 , Zhisheng Chen2,3 , Tao Wan4 , Zengchang Qin1 *
+1
+School of ASEE, Beihang University, Beijing, China
+2
+Institute of Computing Technology, Chinese Academy of Sciences, Beijing, China
+3
+University of Chinese Academy of Sciences, Beijing, China
+4
+School of Biological Science and Medical Engineering, Beijing Advanced Innovation Center for
+Biomedical Engineering, Beihang University, Beijing, 100191, China
+{houyubo, zcqin}@buaa.edu.cn
+
+arXiv:2601.05505v1 [cs.CL] 9 Jan 2026
+
+Abstract
+
+rich intermediate reasoning representations after
+every inference step (Hu et al., 2025). This statelessness necessitates the redundant reprocessing of
+historical information, creating a significant bottleneck for agents that must continually accumulate
+experience and adapt.
+To eliminate the gap between transient inference and persistent cognition, memory mechanisms
+have become a focal point of research. Current
+approaches are generally categorized into parametric, token-level, and latent forms (Hu et al., 2025).
+Parametric updates are computationally prohibitive
+for real-time adaptation, while token-level retrieval
+(e.g., Mem0 (Chhikara et al., 2025)) often suffers
+from low information density, crowding out the
+finite context window with raw text rather than
+synthesized understanding. Addressing these limitations, Generative Latent Memory has emerged
+as a promising paradigm (Zhang et al., 2025; Xu
+et al., 2025a). By compressing broad contexts into
+dense continuous vectors, these methods function
+as compact cognitive buffers, preserving critical
+information without exhausting attention budgets.
+However, a structural inefficiency persists in
+state-of-the-art latent memory paradigms due to
+architectural segregation and computational redundancy. Prevalent methods typically synthesize memory via parameter-divergent auxiliary
+modules—whether independent encoders (Wu
+et al., 2025; Yu et al., 2025) or specialized
+adapters (Zhang et al., 2025)—that are detached
+from the primary reasoning backbone. This bifurcation prevents the direct reuse of the backbone’s cached Key-Value (KV) states, compelling
+the system to maintain disjoint memory buffers
+and perform duplicate forward passes for context
+re-encoding. Furthermore, relying on iterative optimization (Li et al., 2025) or full-scale autoregressive decoding for memory generation inevitably interrupts the continuous flow of thought, introducing
+substantial inference latency. We argue that an effi-
+
+The stateless architecture of Large Language
+Models inherently lacks the mechanism to preserve dynamic context, compelling agents to
+redundantly reprocess history to maintain longhorizon autonomy. While latent memory offers a solution, current approaches are hindered
+by architectural segregation, relying on auxiliary encoders that decouple memory from
+the reasoning backbone. We propose FlashMem, a framework that distills intrinsic memory directly from transient reasoning states via
+computation reuse. Leveraging the property
+that internal representations uniquely encode
+input trajectories, FlashMem identifies the last
+hidden state as a sufficient statistic for the interaction history. This enables a Shared-KV
+Consolidator to synthesize memory by attending directly to the backbone’s frozen cache,
+eliminating redundant re-parameterization. Furthermore, a parameter-free Cognitive Monitor
+leverages attention entropy to adaptively trigger consolidation only when high epistemic
+uncertainty is detected. Experiments demonstrate that FlashMem matches the performance
+of heavy baselines while reducing inference latency by 5 times, effectively bridging the gap
+between efficiency and persistent cognition.
+
+1
+
+Introduction
+
+The capability to sustain coherent epistemic states
+across extended temporal horizons is a prerequisite
+for general-purpose autonomy. While Large Language Models (LLMs) function as powerful reasoning engines, their architecture is fundamentally
+stateless: they map inputs to outputs based on static
+parameters without retaining a persistent internal
+state between interactions. This design creates a
+dichotomy between the model’s frozen parametric knowledge and the dynamic procedural context
+required for long-horizon tasks. Consequently, in
+evolving workflows, agents are forced to discard
+* Corresponding author.
+
+1
+
+2
+
+cient memory mechanism should instead be intrinsic—harvesting memory directly from the agent’s
+existing computational flow to bypass redundant
+re-parameterization.
+Realizing this vision, we propose FlashMem, a
+framework that distills latent memory directly from
+the agent’s transient reasoning states via computation reuse. Leveraging the property that LLM
+internal representations uniquely encode input trajectories (Nikolaou et al., 2025), FlashMem treats
+the last hidden state as a sufficient statistic for the
+interaction history. This allows us to employ a
+Shared-KV Consolidator that synthesizes memory by attending directly to the backbone’s frozen
+cache, effectively treating the reasoning process itself as the definitive source of memory without
+structural segregation. Complementing this, to
+align memory generation with real-time epistemic
+needs, we introduce a parameter-free Cognitive
+Monitor. Grounded in the correlation between attention entropy and model uncertainty (Kuhn et al.,
+2023; Farquhar et al., 2024), this mechanism triggers consolidation exclusively when the agent exhibits high internal confusion.
+Our contributions are summarized as follows:
+
+Related Work
+
+Recent scholarship classifies agent memory into
+token-level, parametric, and latent forms (Hu et al.,
+2025). While each has advanced the field, structural inefficiencies persist in how they are generated
+and managed.
+Token-level and Parametric Memory. Tokenlevel memory (e.g., RAG (Lewis et al., 2020),
+MemGPT (Packer et al., 2023), Mem0 (Chhikara
+et al., 2025)) offers transparency but suffers from
+low information density, often exhausting finite attention budgets with retrieved context. Conversely,
+parametric memory (e.g., ROME (Meng et al.,
+2022)) provides inference efficiency by internalizing knowledge into weights but lacks the plasticity
+required for real-time, intra-episode adaptation (Hu
+et al., 2025).
+Generative Latent Memory. To improve density, research has shifted towards active memory
+generation, encoding context into continuous vectors. Prominent works such as MemGen (Zhang
+et al., 2025) and SoftCoT (Xu et al., 2025a) employ auxiliary modules—independent encoders
+or distinct LoRA adapters—to compress context
+into gist tokens (Mu et al., 2023) or latent states.
+Multimodal extensions like VisMem (Yu et al.,
+2025) and CoMEM (Wu et al., 2025) similarly
+rely on separate encoders. However, these architectures are computationally heavy. For instance,
+MemGen necessitates maintaining three distinct
+model instances (Trigger, Weaver, and Reasoner)
+concurrently, while SoftCoT relies on autoregressive decoding or iterative optimization to synthesize prompts. Consequently, they necessitate reencoding history through secondary parameters,
+causing significant redundancy and VRAM overhead.
+
+• We propose FlashMem, a lightweight framework designed to distill intrinsic memory via
+computation reuse. Unlike segregated architectures that require heavy re-encoding,
+FlashMem directly harvests the backbone’s
+transient reasoning states, offering a highefficiency solution for long-horizon agents
+without architectural decoupling.
+• We develop a minimalist Shared-KV Consolidator grounded in the theoretical sufficiency
+of the last hidden state. By synthesizing memory directly from the backbone’s frozen cache,
+this design eliminates redundancy. Empirical results demonstrate that it achieves performance parity with heavy baselines while
+reducing inference latency by 5× with negligible VRAM overhead.
+
+Efficiency and Cognitive Control. To mitigate
+the high costs of long-context reasoning, research
+focuses on two optimization paths: state compression and selective activation. Heuristic methods
+like SnapKV (Li et al., 2024), H2O (Zhang et al.,
+2023), and PyramidKV (Cai et al., 2025) compress the KV cache by pruning less attentive tokens. While fast, these extractive approaches risk
+severing long-range semantic dependencies compared to generative synthesis. Beyond compression, optimizing activation timing is equally critical. Existing systems often rely on static prompts
+or heavy trainable classifiers (Zhang et al., 2025),
+
+• We introduce a parameter-free Cognitive
+Monitor that utilizes attention entropy as a
+real-time signal for epistemic uncertainty. Our
+analysis demonstrates that high entropy effectively localizes model confusion and hallucinations, enabling the monitor to adaptively
+trigger memory consolidation only when necessary to prevent wasteful computation.
+2
+
+ignoring the established link between attention entropy and model uncertainty (Kuhn et al., 2023;
+Farquhar et al., 2024; Guerreiro et al., 2023). FlashMem addresses these limitations by integrating a
+Shared-KV consolidator for efficient computation
+reuse and a parameter-free entropy monitor for selfregulated activation.
+
+3
+
+Methodology
+
+3.1
+
+Preliminaries and Problem Formulation
+
+mines when to generate memory. Upon detecting high entropy (signaling model confusion),
+the monitor suspends standard generation to
+initiate memory consolidation.
+• The Memory Consolidator (Sec. 3.4): A
+lightweight decoder designed to determine
+how to synthesize memory efficiently. To
+avoid re-processing the long historical trajectory, it adopts a shared-KV design. Specifically, it projects the backbone’s current hidden state ht to serve as the initial query, and
+then attends directly to the backbone’s accumulated KV cache. This mechanism enables
+FlashMem to distill valuable knowledge and
+experiential patterns directly from the backbone’s high-level representations, bypassing
+the need for redundant re-encoding.
+
+Agent Formulation and the Efficiency Gap.
+We formalize an LLM-based agent as a parametric policy πθ interacting via a trajectory τ<t =
+(o1 , a1 , . . . , ot−1 , at−1 ). At step t, the agent samples action at conditioned on the history τ<t , current observation ot , and auxiliary memory M:
+at ∼ πθ (· | τ<t , ot , M)
+
+(1)
+
+Inference Workflow. During inference, FlashMem dynamically switches between standard generation and memory-augmented modes. The synthesized memory M is soft-injected back into the
+backbone’s input stream. These latent embeddings
+serve as high-density cognitive cues, not only surfacing relevant historical context but also injecting
+abstract reasoning patterns to steer subsequent complex decision-making.
+
+In this work, we focus on Latent Memory,
+represented as continuous embeddings M =
+{m1 , . . . , mK } (mi ∈ Rd ). Unlike token-level
+retrieval, latent memory functions as a high-density
+buffer that encodes abstract reasoning patterns with
+minimal token overhead.
+However, prevalent paradigms typically adopt a
+segregated architecture, generating memory via an
+auxiliary process Gϕ :
+M = Gϕ (τ<t )
+
+3.3
+
+(2)
+
+This necessitates an independent encoding pass,
+incurring computational redundancy via the repetitive encoding of τ<t and state segregation due to
+the maintenance of disjoint KV caches. Our goal is
+to synthesize M intrinsically by reusing the backbone’s states.
+3.2
+
+The Cognitive Monitor: Entropy-Based
+Uncertainty Perception
+
+Current generative memory paradigms often rely
+on rigid triggering mechanisms: either static
+injection—exemplified by SoftCoT (Xu et al.,
+2025a) which indiscriminately prepends tokens—
+wasting computation on simple queries, or learned
+classifiers like MemGen (Zhang et al., 2025),
+which introduce architectural overhead and distribution shift risks. Instead, we propose to leverage
+the LLM’s intrinsic uncertainty as a parameter-free
+activation signal. Pioneering works in uncertainty
+estimation (Kuhn et al., 2023) and hallucination
+detection (Farquhar et al., 2024) have established
+that the dispersion of a model’s internal probability
+distribution correlates strongly with its semantic
+confidence. Specifically, when a model is confused or prone to confabulation, its attention mechanism tends to exhibit high entropy, lacking focus
+on salient tokens (Guerreiro et al., 2023; Bibal et al.,
+2022). Building on this theoretical consensus, we
+employ attention entropy as a real-time metacognitive indicator.
+
+Overview of FlashMem
+
+To address the aforementioned efficiency gaps, we
+introduce FlashMem, a memory generation architecture that is deeply coupled with the LLM backbone πθ . As illustrated in Figure 1, unlike segregated systems that rely on independent encoding
+passes, FlashMem operates on the principle of computation reuse: it synthesizes memory directly from
+the backbone’s transient activation states, thereby
+eliminating repetitive encoding and the overhead
+of maintaining disjoint KV caches. The framework
+comprises two synergistic components:
+• The Cognitive Monitor (Sec. 3.3): A
+parameter-free gating mechanism that deter3
+
+System Prompt
+User Query
+Execution Plan
+Chain of Thought
+
+Analyze the error logs
+and respond in...
+
+Notations
+
+Certain:
+Skip Recalling
+
+Skip
+
+Confusion Detection
+Frozen
+Parameters
+
+Yes,
+Generate
+Memory
+
+Attention Map
+
+Last Hidden State ℎ𝑡
+
+No,
+Continue
+Generation
+
+𝐻 𝐴𝑡𝑡𝑛 > 𝜏?
+
+Last Layer
+
+Memory Consolidator
+
+×𝑁
+
+High Entropy
+
+Layer 3
+
+Latent Memory
+
+Layer 2
+
+Low Entropy
+
+{"code": 404}
+
+Cognitive Monitor
+
+Shared KV Cache
+
+Normal Token
+
+Recalling…
+“JSON only”
+
+LLM Backbone
+
+Tool Outputs
+Retrieval Context
+
+Confused:
+[Format?]
+
+Soft-Injection
+to Context
+
+Low-Latency
+Generation
+
+Self-Attn & FFN
+𝑇
+𝑄 ⋅ 𝐾𝑓𝑟𝑜𝑧𝑒𝑛
+
+Light Cross-Attn
+
+Layer 1
+
+Projector
+
+Hidden State
+
+Figure 1: The architecture of FlashMem. It features a parameter-free Cognitive Monitor (top right) that activates
+memory generation based on attention entropy uncertainty, and a lightweight Memory Consolidator (bottom
+right). The consolidator utilizes a Shared-KV design to efficiently generate latent memories by reusing the frozen
+backbone’s cache, taking the hidden state ht as the initiation seed.
+
+Mitigating Attention Sinks. However, calculating entropy directly from raw attention weights
+is unreliable due to the attention sink phenomenon (Xiao et al., 2024). Studies show
+that LLMs (and Vision Transformers (Darcet
+et al., 2024)) notoriously allocate massive attention
+scores to initial tokens (e.g., [BOS]), regardless of
+their semantic irrelevance. This dominant sink artificially acts as a low-entropy anchor, masking the
+true dispersion of the reasoning process. To extract a de-noised cognitive signal, we process the
+attention weights from the last layer, which has
+been shown to encode the most semantic-rich and
+task-specific information (Tenney et al., 2019). Let
+At,h ∈ Rt denote the attention distribution of head
+h at the current step t over the context sequence.
+We define Ssink as the set of indices corresponding
+to the attention sinks. We explicitly mask these
+tokens and re-normalize the distribution for each
+head:
+At,h [j] · I(j ∈
+/ Ssink )
+Ãt,h [j] = P
+/ Ssink )
+k At,h [k] · I(k ∈
+
+individually to capture diverse uncertainty patterns,
+and then aggregate them to form the final metric.
+The system uncertainty Ht is defined as the average
+entropy across all H heads:
+
+Ht =
+
+1
+H
+
+H
+X
+h=1
+
+
+−
+
+
+X
+
+Ãt,h [j] log Ãt,h [j] (4)
+
+j/
+∈Ssink
+
+Memory consolidation is activated only when
+Ht > τ . The threshold τ functions as a sensitivity
+knob governing the efficiency-performance tradeoff. A lower τ encourages the agent to seek memory aid more aggressively (prioritizing accuracy),
+while a higher τ restricts intervention to moments
+of severe confusion (prioritizing speed). This flexibility allows FlashMem to adapt to varying computational budgets at test time, offering a distinct
+advantage over fixed-cost classifiers. In practice,
+rather than relying on a fixed heuristic value, we
+adopt a distribution-aware calibration strategy. The
+optimal baseline for τ correlates with the model’s
+intrinsic confidence and the task’s open-endedness.
+We discuss these entropy dynamics and detail our
+statistical calibration protocol in Appendix C.
+
+(3)
+
+where I is the indicator function and j, k represent
+token indices.
+Entropy Decision and Adaptive Intervention.
+We calculate the Shannon entropy for each head
+4
+
+3.4
+
+The Memory Consolidator: Shared-KV
+Generation
+
+smoother representation alignment. The Consolidator then auto-regressively generates K latent
+embeddings M = {m1 , . . . , mK }, which are softinjected into the backbone’s input stream to guide
+subsequent reasoning.
+
+Upon activation, the system aims to synthesize
+memory efficiently. To achieve this, we introduce
+the Memory Consolidator, a lightweight decoder
+architecture designed strictly around the principle
+of computation reuse.
+State Projection via Injectivity. Leveraging the
+injectivity of LLM representations (Nikolaou et al.,
+2025), we utilize the backbone’s last hidden state
+ht as a comprehensive semantic summary of the
+historical context. Instead of re-encoding inputs,
+we treat the backbone as a pre-computed encoder.
+We project ht into the consolidator’s working dimension via a two-layer MLP to produce the initial
+latent embedding m0 . This allows the Consolidator
+to inherit the backbone’s comprehension without
+redundant processing.
+
+4
+
+Experiments
+
+4.1
+
+Experimental Setup
+
+We evaluate FlashMem on six benchmarks:
+reasoning (GSM8K (Cobbe et al., 2021),
+MATH (Hendrycks et al., 2021), GPQA (Rein
+et al., 2023)), coding (KodCode (Xu et al., 2025b)),
+and summarization (BookSum (Kryscinski et al.,
+2022), GovReport (Huang et al., 2021)). We compare against three paradigms: (1) direct generation
+(Vanilla, CoT-SC (Wang et al., 2023)); (2) KV
+compression (SnapKV (Li et al., 2024)); and (3)
+generative latent memory (MemGen (Zhang et al.,
+2025)). Experiments utilize instruct-tuned backbones from Qwen (2.5-1.5B, 3-4B) (Yang et al.,
+2024, 2025) and Llama (3.1-8B, 3.2-3B) (Meta
+AI, 2024a,b). A lightweight Consolidator is
+trained via SFT for each backbone while keeping
+the backbone frozen; detailed protocols and
+hyperparameters are in Appendix A.
+
+Projection-Free Cross-Attention. The Consolidator consists of L stacked decoder layers. To
+minimize parameter count and VRAM usage, we
+introduce a projection-free cross-attention mechanism. Unlike standard attention layers that require
+trainable projections for Keys and Values, we discard WK and WV . Let x denote the input state
+to the current layer, initialized as m0 . The module computes only the Query vector using x and
+attends directly to the backbone’s accumulated key
+and value matrices K and V:
+
+
+(xWQ )K⊤
+√
+Attn(x, K, V) = softmax
+V (5)
+d
+
+4.2
+
+Main Results
+
+Tables 1 and 2 present the performance of FlashMem against baselines on the Qwen and Llama
+families, respectively.
+Competitive Reasoning Fidelity. FlashMem
+achieves parity with the heavy-weight MemGen
+baseline across reasoning tasks without relying on
+independent encoders. For instance, on Qwen 2.5
+(Table 1), FlashMem reaches 70.09% on GSM8K,
+closely trailing MemGen (70.54%) while significantly outperforming the Vanilla baseline. Notably, on the smaller Llama 3.2 3B model (Table 2),
+FlashMem even surpasses MemGen on the challenging MATH dataset (48.05% vs. 45.17%), suggesting that the shared-KV design may better preserve mathematical priors in smaller parametric
+spaces.
+
+where WQ is the only learnable projection matrix
+in the attention operation. This mechanism ensures negligible storage overhead for context maintenance, as the generation process is anchored to
+the backbone’s existing state pool.
+Weight Inheritance and Soft Injection. Training a lightweight module from scratch to collaborate with a frozen, massive backbone presents a
+significant semantic alignment challenge. Random
+initialization often results in a large distributional
+shift, leading to unstable optimization. To mitigate
+this, we employ a homologous weight inheritance
+strategy. Specifically, we initialize the Consolidator’s parameters using the last L layers of the backbone, where L ≪ Nbackbone . This initialization
+places the Consolidator within a semantic manifold
+compatible with the backbone from the start, significantly accelerating convergence and facilitating
+
+Long-Context Superiority and Robustness.
+FlashMem exhibits particular strength in summarization and structure-heavy tasks, consistently
+outperforming MemGen on GovReport and KodCode across most backbones. On the Qwen 3
+4B model, FlashMem leads on both KodCode
+(61.13%) and GovReport (15.52%), indicating
+5
+
+Table 1: Results on Qwen Family. We compare FlashMem with baselines on Qwen 2.5 (1.5B) and the latest Qwen
+3 (4B). Metric: Accuracy (%) for Reasoning/Code, ROUGE-1 for Summarization. FlashMem consistently matches
+or exceeds the segregated latent memory baseline (MemGen) while maintaining superior efficiency. Best results are
+bolded, and second-best results are underlined.
+Dataset
+
+Metric
+
+Qwen 2.5 1.5B Instruct
+Vanilla
+
+CoT-SC
+
+Qwen 3 4B Instruct
+
+SnapKV
+
+MemGen
+
+FlashMem
+
+Vanilla
+
+CoT-SC
+
+SnapKV
+
+MemGen
+
+FlashMem
+
+Mathematical & Scientific Reasoning
+GSM8K
+MATH
+GPQA
+
+ACC
+ACC
+ACC
+
+65.12
+40.71
+13.96
+
+68.98
+43.77
+15.14
+
+54.37
+38.00
+13.66
+
+70.54
+46.55
+16.13
+
+70.09
+50.16
+14.73
+
+80.49
+54.22
+16.84
+
+82.65
+54.96
+17.95
+
+69.88
+50.12
+14.54
+
+85.42
+60.23
+21.68
+
+84.38
+58.36
+20.54
+
+22.85
+
+29.30
+
+39.70
+
+55.70
+
+50.20
+
+56.48
+
+57.55
+
+49.70
+
+59.77
+
+61.13
+
+11.62
+14.41
+
+10.38
+14.22
+
+12.86
+13.97
+
+13.77
+16.11
+
+8.93
+13.65
+
+9.35
+13.87
+
+11.12
+13.74
+
+10.18
+14.31
+
+10.99
+15.52
+
+Code Generation
+KodCode
+
+ACC
+
+Long-Context Summarization
+BookSum
+GovReport
+
+R-1
+R-1
+
+11.14
+13.61
+
+Table 2: Results on Llama Family. Performance comparison on Llama 3.1 (8B) and Llama 3.2 (3B). FlashMem
+demonstrates robust generalization across different parameter scales, particularly excelling in summarization and
+code tasks on smaller architectures. Best results are bolded, and second-best results are underlined.
+Dataset
+
+Metric
+
+Llama 3.1 8B Instruct
+Vanilla
+
+CoT-SC
+
+Llama 3.2 3B Instruct
+
+SnapKV
+
+MemGen
+
+FlashMem
+
+Vanilla
+
+CoT-SC
+
+SnapKV
+
+MemGen
+
+FlashMem
+
+Mathematical & Scientific Reasoning
+GSM8K
+MATH
+GPQA
+
+ACC
+ACC
+ACC
+
+68.38
+45.97
+15.48
+
+68.91
+50.37
+17.80
+
+57.30
+44.23
+15.66
+
+71.12
+50.95
+18.43
+
+70.46
+51.56
+17.86
+
+60.48
+40.77
+4.79
+
+60.76
+44.12
+5.18
+
+55.62
+37.14
+5.27
+
+63.68
+45.17
+7.07
+
+62.35
+48.05
+6.70
+
+34.61
+
+37.90
+
+40.88
+
+57.70
+
+54.27
+
+21.93
+
+26.27
+
+20.33
+
+29.64
+
+29.98
+
+14.62
+15.41
+
+11.67
+12.81
+
+15.61
+16.37
+
+14.65
+17.23
+
+9.03
+12.92
+
+9.29
+13.61
+
+10.25
+14.43
+
+12.09
+13.44
+
+11.04
+14.55
+
+Code Generation
+KodCode
+
+ACC
+
+Long-Context Summarization
+BookSum
+GovReport
+
+R-1
+R-1
+
+13.12
+13.95
+
+We scaled the input context length L from 4,096
+(4k) to 65,536 (64k) tokens across Vanilla, MemGen (Zhang et al., 2025), and FlashMem configurations.
+
+that deriving memory directly from the backbone’s
+high-fidelity KV cache captures global semantics
+better than re-encoding the history. Furthermore,
+FlashMem significantly outperforms the KV compression baseline SnapKV (e.g., a +11% gap on
+Qwen 3 KodCode), confirming that generative latent memory is essential for preserving the complex
+dependencies that heuristic pruning methods typically discard.
+4.3
+
+Efficiency Results. As shown in Table 3, the segregated architecture of MemGen exhibits poor scalability: at 64k tokens, its VRAM usage rises to
+40.78 GB (nearly 10 GB overhead), while effective throughput collapses to 4.13 tokens/s due to
+re-encoding bottlenecks. In contrast, FlashMem
+maintains a highly efficient profile nearly identical to the Vanilla baseline (31.44 GB vs 31.21 GB
+VRAM) while sustaining robust throughput (20.86
+tokens/s). Crucially, in terms of latency per step at
+maximum context, FlashMem (12.28 ms) achieves
+an approximate 5× speedup over MemGen (61.99
+ms), confirming that the shared-KV design effectively eliminates redundant storage and computation.
+
+Efficiency Analysis
+
+To empirically validate the architectural efficiency
+of FlashMem, we conducted a stress test focusing
+on computational latency and memory footprint
+under long-context conditions.
+Benchmark Protocol. We implemented a cyclic
+generation benchmark on a single NVIDIA A10080GB GPU. The evaluation follows an iterative
+pattern of 8 cycles where the model generates 32
+text tokens followed by 8 latent memory tokens.
+6
+
+Table 3: Efficiency Benchmark on Long-Context Inference. We report the Peak VRAM usage (maximum
+observed), along with Effective Generation Throughput (excluding latent tokens) and Average Latency across
+varying context lengths (4k to 64k). Values are reported as Mean±Std. Dev. . All statistics are derived from 30
+independent runs. Background Color Intensity signifies performance overhead relative to the Vanilla baseline; darker
+red indicates higher overhead. FlashMem maintains a profile nearly identical to the baseline, whereas MemGen
+incurs prohibitive costs at long contexts.
+
+4.4
+
+Eff. Throughput (tokens/s) ↑
+
+Latency (ms) ↓
+
+Vanilla
+
+MemGen
+
+FlashMem
+
+Vanilla
+
+MemGen
+
+FlashMem
+
+Vanilla
+
+MemGen
+
+FlashMem
+
+4.61
+8.66
+11.88
+18.32
+31.21
+
+13.19
+15.03
+18.71
+26.07
+40.78
+
+7.29
+8.90
+12.12
+18.56
+31.44
+
+39.45±3.84
+38.29±1.52
+37.34±2.57
+34.24±4.55
+25.67±1.79
+
+31.02±2.87
+26.34±1.93
+17.50±1.16
+9.98±0.24
+4.13±0.06
+
+37.14±0.61
+37.28±0.50
+35.65±2.78
+29.74±1.79
+20.86±1.01
+
+6.49±0.94
+6.68±0.45
+6.86±0.82
+7.48±1.33
+9.97±0.83
+
+8.25±1.02
+9.72±0.96
+14.63±0.99
+25.65±0.63
+61.99±0.88
+
+6.89±0.10
+6.87±0.09
+7.18±0.68
+8.61±0.51
+12.28±0.48
+
+GSM8K — Latency
+
+Impact of Consolidator Depth
+
+GSM8K — Peak VRAM
+50
+
+Latency (s)
+
+To determine the optimal configuration for the
+Memory Consolidator, we investigated the effect
+of layer depth L (1 ≤ L ≤ 6) on both reasoning
+performance and computational cost.
+
+Peak VRAM (GB)
+
+6.8
+
+6.6
+
+5.2
+49
+5.0
+48
+Peak VRAM
+Throughput (tok/s)
+
+4.8
+
+6.4
+1
+
+2
+
+3
+
+4
+
+5
+
+Layers
+KODCODE — Latency
+
+6
+
+Latency (s)
+
+Table 4: Accuracy across Consolidator Depths. We
+report accuracy (%) on GSM8K and KodCode for layer
+depths L = 1 to 6. Performance remains stable, indicating that increasing depth provides minimal benefit.
+
+Peak VRAM (GB)
+
+7.1
+
+1
+
+7.0
+6.9
+6.8
+
+2
+
+3
+
+4
+
+Layers
+KODCODE — Peak VRAM
+
+Task
+
+L=1
+
+L=2
+
+L=3
+
+L=4
+
+L=5
+
+L=6
+
+GSM8K
+KodCode
+
+69.55
+50.10
+
+69.47
+50.19
+
+69.47
+50.29
+
+69.55
+50.19
+
+69.55
+50.29
+
+69.55
+50.29
+
+2
+
+3
+
+4
+
+Layers
+
+5
+
+6
+
+47
+
+6
+
+5.2
+47
+5.0
+46
+Peak VRAM
+Throughput (tok/s)
+
+4.8
+
+6.7
+1
+
+5
+
+1
+
+2
+
+3
+
+4
+
+Layers
+
+5
+
+Throughput (tok/s)
+
+4k
+8k
+16k
+32k
+64k
+
+Peak Memory (GB) ↓
+
+Throughput (tok/s)
+
+Context
+
+45
+
+6
+
+Figure 2: Efficiency Trade-offs across Layer Depths.
+VRAM usage scales linearly with depth, while latency
+increases monotonically. Combined with Table 4, results favor a minimal depth configuration.
+
+Performance Saturation. Table 4 details the accuracy on GSM8K and KodCode. We observe
+immediate performance saturation: the single-layer
+model (L = 1) achieves 69.55% on GSM8K,
+which is comparable to deeper configurations. Similarly, on the structure-sensitive KodCode task, increasing depth from L = 1 to L = 6 yields negligible gains (e.g., 50.10% vs. 50.29%). This empirical
+evidence strongly suggests that a single-layer Consolidator is sufficient to distill high-quality latent
+memory from the backbone’s shared KV cache,
+validating our minimalist design philosophy.
+
+framework.
+
+5
+
+Mechanism Analysis
+
+5.1
+
+Effectiveness of Cognitive Monitor
+
+We hypothesize that the Cognitive Monitor acts as
+an uncertainty detector, identifying critical decision
+points where the model lacks internal knowledge.
+To validate this, we analyzed inference traces on the
+GSM8K dataset, specifically focusing on samples
+where the Vanilla model failed while FlashMem
+succeeded.
+
+Cost Analysis. While accuracy plateaus, the
+computational overhead increases with depth. As
+illustrated in Figure 2, VRAM usage exhibits a
+strict linear growth, directly correlating with the increase in parameters. In contrast, inference latency
+shows a monotonic increase (and throughput a corresponding decrease), reflecting the accumulated
+overhead of sequential decoding. Given that L = 1
+offers nearly identical reasoning support with the
+lowest resource footprint, we conclude that shallow architectures are optimal for the FlashMem
+
+Qualitative Analysis: Entropy Dynamics. Figure 3 illustrates the attention entropy trajectories
+across four different backbones. In these cases,
+the Vanilla baseline exhibits sustained or rising
+entropy at critical reasoning steps, indicative of
+cognitive confusion that eventually leads to logical errors. In contrast, FlashMem successfully
+identifies these high-entropy peaks. Upon injecting the synthesized latent memory, we observe a
+pronounced reduction in attention entropy, reflect7
+
+ ( Q W U R S \  & R P S D U L V R Q   ) O D V K 0 H P  Y V  9 D Q L O O D  $ F U R V V  0 R G H O V
+ ) / $ 6 + 0 ( 0    4 Z H Q        %  , Q V W U X F W
+
+ 
+ 
+
+   
+
+   
+
+   
+
+   
+
+ ) / $ 6 + 0 ( 0    4 Z H Q    %  , Q V W U X F W     
+
+   
+
+ 
+ 
+
+   
+
+   
+
+   
+
+   
+
+   
+
+   
+
+   
+
+   
+
+   
+
+ ) / $ 6 + 0 ( 0    / O D P D       %  , Q V W U X F W
+
+   
+
+   
+
+   
+
+   
+
+   
+
+   
+
+   
+   
+   
+   
+   
+       
+   ) / $ 6 + 0 ( 0    / O D P D       %  , Q V W U X F W
+ 
+ 
+   
+
+   
+
+   
+
+   
+
+   
+
+   
+
+Metric
+Mean Entropy Reduction
+Mean Relative Reduction
+Entropy Reduction Range
+Probability of Reduction
+Prob. of Significant Reduction (> 0.5)
+
+   
+
+ 9 $ 1 , / / $    / O D P D       %  , Q V W U X F W
+
+   
+
+   
+
+   
+
+ 9 $ 1 , / / $    4 Z H Q    %  , Q V W U X F W     
+
+   
+
+   
+   
+
+Table 5: Statistics of Entropy Reduction via Memory
+Injection. Metrics are calculated based on triggered
+steps in GSM8K. The high probability of reduction
+(86.5%) confirms the consistent effectiveness of the
+Cognitive Monitor in mitigating model uncertainty.
+
+ 9 $ 1 , / / $    4 Z H Q        %  , Q V W U X F W
+
+ 
+ ( Q W U R S \
+
+ ( Q W U R S \
+
+ 
+
+   
+
+   
+
+ 9 $ 1 , / / $    / O D P D       %  , Q V W U X F W
+
+   
+   
+ 7 R N H Q  , Q G H [
+
+   
+
+ ) O D V K 0 H P  5 D Z  ( Q W U R S \
+ ) O D V K 0 H P  6 P R R W K H G  ( Q W U R S \
+ 9 D Q L O O D  5 D Z  ( Q W U R S \
+
+5.2
+
+   
+
+   
+
+0.215 ± 0.125
+5.12% ± 3.85%
+-0.085 ∼ 0.850
+76.5%
+7.2%
+
+in 7.2% of cases, which typically correspond to pivotal moments of insight where synthesized memory
+corrects a potential hallucination.
+
+ 
+   
+
+Statistics
+
+   
+   
+ 7 R N H Q  , Q G H [
+
+Visualizing the Memory Consolidation
+Process
+
+To further investigate how FlashMem bridges the
+gap between distant context and current generation,
+we visualized the internal attention dynamics of
+both the Consolidator and the backbone. Due to
+space constraints, the detailed qualitative analysis
+and the corresponding attention heatmaps are presented in Appendix D. Our observations therein
+confirm that the Consolidator functions as an effective semantic filter, while the backbone maintains
+sustained attention on the injected latent tokens
+throughout the generation process.
+
+ 9 D Q L O O D  6 P R R W K H G  ( Q W U R S \
+ 7 U L J J H U  3 R L Q W V
+
+Figure 3: Entropy Dynamics during Reasoning. We
+visualize the attention entropy of FlashMem (Blue)
+vs. Vanilla (Red) across four models on challenging
+GSM8K samples. The vertical dashed lines indicate
+memory injection points triggered by the Cognitive
+Monitor. Post-injection, FlashMem exhibits a notable
+reduction in entropy compared to the baseline, reflecting
+increased confidence and reasoning stability.
+
+ing a significant decrease in the model’s internal
+uncertainty in subsequent tokens. This confirms
+that the Cognitive Monitor effectively pinpoints
+moments of confusion, and the inserted memory
+serves to stabilize the reasoning path. To rigorously validate this alignment, we further employed
+an LLM-as-a-Judge approach to localize the exact onset of reasoning errors, confirming that they
+highly coincide with the detected entropy peaks
+(see Appendix B).
+
+6
+
+Conclusion
+
+In this paper, we introduced FlashMem, a framework that reconciles the tension between highdensity latent memory and inference efficiency
+in autonomous agents. By replacing segregated
+auxiliary encoders with a Shared-KV Consolidator, FlashMem distills memory directly from the
+backbone’s frozen representations via computation
+reuse, eliminating the overhead of redundant reparameterization. Furthermore, the integration of a
+parameter-free Cognitive Monitor empowers the
+agent to dynamically trigger memory consolidation based on real-time uncertainty, ensuring judicious resource allocation. Extensive experiments
+demonstrate that FlashMem matches the reasoning
+fidelity of heavy-weight baselines while reducing
+inference latency by up to 5×. We hope this work
+establishes a new paradigm for intrinsic, efficient
+memory mechanisms, facilitating the deployment
+of long-horizon agents in resource-constrained environments.
+
+Quantitative Analysis: Statistical Significance.
+To verify this entropy reduction is statistically robust, we computed metrics across all triggered instances in the GSM8K test set.
+The results are summarized in Table 5. On average, memory injection leads to a Mean Entropy
+Reduction of 0.215, with a relative reduction of
+5.12%. Notably, the Probability of Reduction is as
+high as 76.5%, indicating that in the vast majority
+of cases, accessing latent memory effectively resolves the model’s internal conflict. Furthermore,
+significant entropy drops (reduction > 0.5) occur
+8
+
+Limitations
+
+Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet
+Singh, and Deshraj Yadav. 2025. Mem0: Building
+production-ready ai agents with scalable long-term
+memory. arXiv preprint arXiv:2504.19413.
+
+While FlashMem demonstrates robust efficiency
+and reasoning improvements, there are avenues
+for future research to further expand its scope.
+First, our current framework is optimized for textual and code-based tasks. We have not yet extended the Shared-KV paradigm to multimodal settings. Given the increasing prominence of VisionLanguage Models (VLMs), adapting FlashMem to
+handle multi-sensory inputs and visual tokens represents a promising direction for future work. Second, while we have validated the effectiveness of
+FlashMem on representative open-source models,
+the exploration of this intrinsic memory mechanism
+on ultra-large-scale foundation models (e.g., those
+with hundreds of billions of parameters) remains to
+be conducted. Investigating the scaling properties
+of computation reuse at such magnitudes would be
+valuable to fully map the potential of latent memory.
+
+Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian,
+Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias
+Plappert, Jerry Tworek, Jacob Hilton, Reiichiro
+Nakano, and 1 others. 2021. Training verifiers
+to solve math word problems. arXiv preprint
+arXiv:2110.14168.
+Zihang Dai, Zhilin Yang, Yiming Yang, Jaime Carbonell, Quoc Le, and Ruslan Salakhutdinov. 2019.
+Transformer-xl: Attentive language models beyond
+a fixed-length context. In Proceedings of the 57th
+Annual Meeting of the Association for Computational
+Linguistics (ACL), pages 2978–2988.
+Timothée Darcet, Maxime Oquab, Julien Mairal, and
+Piotr Bojanowski. 2024. Vision transformers need
+registers. In International Conference on Learning
+Representations (ICLR).
+Sebastian Farquhar, Jannik Kossen, Lorenz Kuhn, and
+Yarin Gal. 2024. Detecting hallucinations in large
+language models using semantic entropy. Nature,
+630(8017):625–630.
+
+Ethical considerations
+
+Suyu Ge, Yunan Zhang, Liyuan Liu, Minjia Zhang,
+Jiawei Han, and Jianfeng Gao. 2024. Model tells you
+what to discard: Adaptive KV cache compression
+for LLMs. In International Conference on Learning
+Representations (ICLR).
+
+This work aligns with Green AI principles by significantly lowering energy consumption through
+efficient computation reuse and reduced inference
+latency. We strictly adhere to the licenses and usage policies of the open-source models and datasets
+utilized in our experiments. While inheriting the
+inherent properties of pre-trained backbones, our
+framework does not introduce additional risks regarding data privacy or human rights violations.
+
+Mor Geva, Roei Schuster, Jonathan Berant, and Omer
+Levy. 2021. Transformer feed-forward layers are
+key-value memories. In Proceedings of the 2021
+Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 5484–5495.
+Nuno M Guerreiro, Elena Voita, and André FT Martins.
+2023. Looking for a needle in a haystack: A comprehensive study of hallucinations in neural machine
+translation. In Proceedings of the 17th Conference of
+the European Chapter of the Association for Computational Linguistics (EACL), pages 1059–1075.
+
+References
+Adrien Bibal, Rémi Cardon, David Alfter, Rodrigo
+Wilkens, Xin Wang, Patrick Watrin, and Thomas
+Schneider. 2022. Attention entropy of large language
+models. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics
+(ACL), pages 201–212.
+
+Dan Hendrycks, Collin Burns, Saurav Kadavath, Akul
+Arora, Steven Basart, Eric Tang, and Dawn Song.
+2021. Measuring mathematical problem solving with
+the math dataset. Advances in Neural Information
+Processing Systems, 34:25129–25141.
+
+Sebastian Borgeaud, Arthur Mensch, Jordan Hoffmann,
+Trevor Cai, Eliza Rutherford, Katie Millican, and 1
+others. 2022. Improving language models by retrieving from trillions of tokens. In International Conference on Machine Learning (ICML), pages 2206–
+2240.
+
+Yuyang Hu, Shichun Liu, Yanwei Yue, Guibin Zhang,
+Boyang Liu, Fangyi Zhu, Jiahang Lin, Honglin Guo,
+Shihan Dou, Zhiheng Xi, and 1 others. 2025. Memory in the age of ai agents: A survey. arXiv preprint
+arXiv:2512.13564.
+
+Zefan Cai, Yichi Zhang, Bofei Gao, Yuliang Liu,
+Yucheng Li, Tianyu Liu, Keming Lu, Wayne Xiong,
+Yue Dong, Junjie Hu, and Wen Xiao. 2025. Pyramidkv: Dynamic kv cache compression based on
+pyramidal information funneling. arXiv preprint
+arXiv:2406.02069.
+
+Luyang Huang, Shuyang Cao, Nikolaus Parulian, Heng
+Ji, and Lu Wang. 2021. Efficient attentions for long
+document summarization. In Proceedings of the 2021
+Conference on Empirical Methods in Natural Language Processing, pages 7779–7793.
+
+9
+
+Saurav Kadavath, Tom Conerly, Amanda Askell, Tom
+Henighan, Dawn Drain, Ethan Perez, Nicholas
+Schiefer, Zac Hatfield-Dodds, and 1 others. 2022.
+Language models (mostly) know what they know.
+arXiv preprint arXiv:2207.05221.
+
+Meta AI. 2024b. Llama 3.2 technical report. Meta AI
+Technical Report.
+Jesse Mu, Xiang Lisa Li, and Noah D Goodman. 2023.
+Learning to compress prompts with gist tokens. In
+Advances in Neural Information Processing Systems,
+volume 36, pages 12653–12671.
+
+Takeshi Kojima, Shixiang Shane Gu, Machel Reidsma,
+and Tatsuya Harada. 2022. Large language models
+are zero-shot reasoners. In Advances in Neural Information Processing Systems (NeurIPS), volume 35,
+pages 22199–22213.
+
+Giorgos Nikolaou, Tommaso Mencattini, Donato
+Crisostomi, Andrea Santilli, Yannis Panagakis, and
+Emanuele Rodolà. 2025. Language models are
+injective and hence invertible. arXiv preprint
+arXiv:2510.15511.
+
+Wojciech Kryscinski, Nazneen Rajani, Divyansh Agarwal, and Caiming Xiong. 2022. Booksum: A collection of datasets for long-form narrative summarization. In Findings of the Association for Computational Linguistics: EMNLP 2022, pages 2988–3002.
+
+Charles Packer, Vivian Fang, Shishir G Patil, Kevin
+Lin, Sarah Wooders, and Joseph E Gonzalez. 2023.
+MemGPT: Towards LLMs as operating systems.
+arXiv preprint arXiv:2310.08560.
+
+Lorenz Kuhn, Yarin Gal, and Sebastian Farquhar. 2023.
+Semantic uncertainty: Linguistic invariances for uncertainty estimation in natural language generation.
+In International Conference on Learning Representations (ICLR).
+
+David Rein, Betty Li Hou, Asa Hutchinson, Armen
+Aghajanyan, Sam Clark, Hannaneh Hajishirzi, Luke
+Zettlemoyer, and Fabio Petroni. 2023. Gpqa: A
+graduate-level google-proof q&a benchmark. arXiv
+preprint arXiv:2311.12022.
+
+Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio
+Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, and 1 others. 2020. Retrieval-augmented
+generation for knowledge-intensive nlp tasks. In Advances in Neural Information Processing Systems
+(NeurIPS), volume 33, pages 9459–9474.
+
+Ian Tenney, Dipanjan Das, and Ellie Pavlick. 2019. Bert
+rediscovers the classical nlp pipeline. In Proceedings
+of the 57th Annual Meeting of the Association for
+Computational Linguistics, pages 4593–4601.
+Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc Le,
+Ed Chi, Sharan Narang, Aakanksha Chowdhery, and
+Denny Zhou. 2023. Self-consistency improves chain
+of thought reasoning in language models. In International Conference on Learning Representations
+(ICLR).
+
+Hengli Li, Chenxi Li, Tong Wu, Xuekai Zhu, Yuxuan
+Wang, Zhaoxin Yu, Eric Hanchen Jiang, Song-Chun
+Zhu, Zixia Jia, Ying Nian Wu, and Zilong Zheng.
+2025. Seek in the dark: Reasoning via test-time
+instance-level policy gradient in latent space. arXiv
+preprint arXiv:2505.13308.
+
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten
+Bosma, Brian Ichter, Fei Xia, Ed Chi, Quoc Le, and
+Denny Zhou. 2022. Chain-of-thought prompting elicits reasoning in large language models. In Advances
+in Neural Information Processing Systems (NeurIPS),
+volume 35, pages 24824–24837.
+
+Yuhong Li, Yingbing Huang, Bowen Yang, Bharat
+Venkitesh, Acyr Locatelli, Hanchen Ye, Tianle Cai,
+Patrick Lewis, and Deming Chen. 2024. Snapkv:
+Llm knows what you are looking for before generation. In Advances in Neural Information Processing
+Systems, volume 37.
+
+Wenyi Wu, Zixuan Song, Kun Zhou, Yifei Shao, Zhiting
+Hu, and Biwei Huang. 2025. Towards general continuous memory for vision-language models. arXiv
+preprint arXiv:2505.17670.
+
+Stephanie Lin, Jacob Hilton, and Owain Evans. 2022.
+Teaching models to express their uncertainty in
+words. Transactions on Machine Learning Research,
+pages 96–107.
+
+Yuhuai Wu, Markus N Rabe, DeLesley Hutchins, and
+Christian Szegedy. 2022. Memorizing transformers.
+In International Conference on Learning Representations (ICLR).
+
+Zichang Liu, Aditya Desai, Fangshuo Xu, Ryan Wang,
+Yuan Xie, and Zhiru Xu. 2023. Scissorhands: Exploiting the persistence of importance hypothesis for
+LLM KV cache compression at inference. In Advances in Neural Information Processing Systems
+(NeurIPS), volume 36.
+
+Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song
+Han, and Mike Lewis. 2024. Efficient streaming language models with attention sinks. In International
+Conference on Learning Representations (ICLR).
+
+Kevin Meng, David Bau, Alex Andonian, and Yonatan
+Belinkov. 2022. Locating and editing factual associations in GPT. In Advances in Neural Information
+Processing Systems, volume 35, pages 17359–17372.
+
+Yige Xu, Xu Guo, Zhiwei Zeng, and Chunyan
+Miao. 2025a.
+Softcot: Soft chain-of-thought
+for efficient reasoning with llms. arXiv preprint
+arXiv:2502.12134.
+
+Meta AI. 2024a. Llama 3.1 technical report. Meta AI
+Technical Report.
+
+10
+
+Zhihong Xu, Yang Liu, Chen Li, Xipeng Qiu, and Xuanjing Huang. 2025b. Kodcode: A diverse, challenging, and verifiable synthetic dataset. arXiv preprint
+arXiv:2502.16748.
+A Yang and 1 others. 2024. Qwen2.5 technical report.
+arXiv preprint arXiv:2412.15115.
+A Yang and 1 others. 2025. Qwen3 technical report.
+arXiv preprint arXiv:2505.09388.
+Xinlei Yu, Chengming Xu, Guibin Zhang, Zhangquan
+Chen, Yudong Zhang, Yongbo He, Peng-Tao Jiang,
+Jiangning Zhang, Xiaobin Hu, and Shuicheng Yan.
+2025. Vismem: Latent vision memory unlocks potential of vision-language models. arXiv preprint
+arXiv:2511.11007.
+Guibin Zhang, Muxin Fu, and Shuicheng Yan. 2025.
+Memgen: Weaving generative latent memory for selfevolving agents. arXiv preprint arXiv:2509.24704.
+Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong
+Chen, Lianmin Zheng, Ruisi Cai, Zhao Song, Yuandong Tian, Christopher Ré, Clark Barrett, Zhangyang
+Wang, and Beidi Chen. 2023. H2O: Heavy-hitter
+oracle for efficient generative inference of large language models. In Advances in Neural Information
+Processing Systems, volume 36, pages 34661–34701.
+Guorui Zhou, Hengrui Hu, Hongtao Cheng, Huanjie
+Wang, Jiaxin Deng, Jinghao Zhang, Kuo Cai, Lejian
+Ren, and 1 others. 2025a. OneRec-V2 technical report. arXiv preprint arXiv:2508.20900.
+Huichi Zhou, Yihang Chen, Siyuan Guo, Xue Yan,
+Kin Hei Lee, Zihan Wang, Ka Yiu Lee, Guchun
+Zhang, Kun Shao, Linyi Yang, and Jun Wang. 2025b.
+Memento: Fine-tuning LLM agents without finetuning LLMs. arXiv preprint arXiv:2508.16153.
+
+11
+
+A
+
+Experimental Implementation Details
+
+A.1
+
+Data Construction and Training
+Objective
+
+entirely frozen (∇θ = 0). Gradients are backpropagated from the loss function, through the
+backbone’s frozen layers, and exclusively into the
+soft memory embeddings Mgen . From there, they
+flow into the Consolidator’s parameters ψ. This
+setup forces the Consolidator to learn an implicit
+objective: it must encode information into Mgen
+such that the frozen backbone’s likelihood of generating the correct expert trajectory y is maximized.
+This effectively functions as knowledge distillation
+from the future, compressing the semantic essence
+of the trajectory y into the latent state Mgen .
+
+Domain-Adaptive Expert Distillation. To ensure the Memory Consolidator captures highfidelity domain-specific reasoning patterns, we
+moved beyond generic pre-training corpora. We
+adopted a targeted expert distillation strategy. For
+each downstream domain—specifically Mathematical Reasoning (GSM8K, MATH) and Code Generation (KodCode)—we curated a dataset of highquality execution trajectories. To achieve this, we
+utilized advanced proprietary models to synthesize
+Chain-of-Thought (CoT) rationales. These synthesized trajectories were subjected to a rigorous rejection sampling filter, retaining only those that led
+to the correct final answer as verified by symbolic
+execution for code or deterministic equivalence
+checks for mathematics. This filtering process ensures that the Consolidator is trained exclusively
+on positive reinforcement signals, minimizing the
+risk of learning from hallucinated or suboptimal
+reasoning paths.
+
+A.2
+
+Infrastructure and Software Stack. All training and inference experiments were conducted on
+a high-performance computational node equipped
+with 4 × NVIDIA A100-SXM4-80GB GPUs. The
+framework was implemented using PyTorch 2.7.1
+and the Hugging Face Transformers library. To
+optimize training throughput and manage memory footprints for the larger backbone models,
+we utilized DeepSpeed ZeRO-2 optimization and
+FlashAttention-2 kernels. This allowed us to train
+the Consolidator efficiently without the need for
+full model sharding in smaller scale experiments.
+
+Sequence Construction and masking. For the
+optimization phase, we construct a unified training
+sequence S for each instance. This sequence concatenates the initial instruction prompt x, the synthesized latent memory placeholders Mgen , and
+the ground-truth expert trajectory y:
+S = [x, Mgen , y]
+
+Configuration Justification. Table 6 provides a
+comprehensive listing of the hyperparameters. We
+selected a memory token count of K = 8 as an
+optimal operating point for our architecture. Regarding the Consolidator depth, based on the efficiency benchmarks detailed in Section 4.4, we
+set L = 1 to prioritize minimal VRAM overhead
+and maximum throughput. To mitigate the risk
+of exploding gradients—a known instability in autoregressive memory generation—we enforced a
+strict gradient clipping norm of 0.53. The learning
+rate schedule utilized a linear warmup for the first
+10% of steps followed by a cosine decay, ensuring
+the stable adaptation of the parameters inherited
+from the backbone within the pre-trained semantic
+space.
+
+(6)
+
+Here, Mgen represents the sequence of K latent
+vectors generated by the Consolidator. Crucially,
+we apply a strategic masking protocol to the loss
+computation. The label indices corresponding to
+the instruction tokens x and the latent memory tokens Mgen are set to -100, which serves as the
+standard ignore index in PyTorch. Consequently,
+the loss is calculated only on the prediction of the
+expert trajectory y.
+Gradient Flow and Optimization. The training
+objective is to minimize the standard Cross-Entropy
+Loss (LCE ) on the target tokens y, conditioned on
+the injected memory:
+L=−
+
+|y|
+X
+
+log Pθ (yt | x, Mgen , y<t )
+
+Hyperparameters and Hardware
+Environment
+
+A.3
+
+Inference Dynamics and Algorithm
+
+The runtime behavior of FlashMem is governed by
+an interactive loop that alternates between standard
+token generation and latent memory consolidation.
+We provide the formal pseudocode in Algorithm 1.
+
+(7)
+
+t=1
+
+Deterministic Memory Generation. Unlike the
+standard stochastic sampling used for text genera-
+
+A critical aspect of our implementation is the computation graph. The backbone parameters θ remain
+12
+
+Table 6: Hyperparameters for FlashMem Training and
+Inference.
+Hyperparameter
+Model Architecture
+Memory Token Count (K)
+Consolidator Layers (L)
+Hidden Dimension
+Training Optimization
+Optimizer
+Learning Rate
+Weight Decay
+Gradient Clipping
+Global Batch Size
+Training Epochs
+Scheduler
+Warmup Ratio
+Inference
+Memory Decoding Strategy
+Entropy Threshold (τ )
+
+B
+
+Value
+
+Methodology for Cognitive Monitor
+Analysis
+
+This section details the experimental protocols employed to validate the efficacy of the Cognitive
+Monitor. These protocols underpin the quantitative
+and qualitative analyses presented in Section 5.1,
+specifically focusing on the correlation between
+attention entropy and reasoning fidelity.
+
+8
+1
+Matches Backbone
+AdamW
+1e-5
+0.01
+0.53
+64
+5
+Cosine Decay
+0.1
+
+B.1
+
+Error Localization via LLM-as-a-Judge
+
+To verify that detected high-entropy peaks correspond to genuine cognitive breakpoints and internal
+model confusion, we conducted a fine-grained error
+analysis on the GSM8K dataset.
+
+Greedy Search (Deterministic)
+Adaptive (85th percentile)
+
+Automated Evaluation Setup. Manually annotating the precise onset of reasoning errors across
+thousands of trajectories is prohibitively expensive
+and prone to subjective bias. Consequently, we
+employed Gemini 3 Pro as an objective, automated
+evaluator (LLM-as-a-Judge). We instructed the
+judge to audit the reasoning trajectories generated
+by the unaugmented Vanilla model with the specific objective of pinpointing the exact reasoning
+step where the logic first deviated from the ground
+truth or exhibited internal inconsistency.
+The prompt utilized for this evaluation was designed to enforce strict step-by-step verification, as
+shown in Table 7.
+
+tion, the memory generation step (Line 8 in Algorithm 1) employs a strict Greedy Search strategy.
+This deterministic approach serves two purposes:
+first, it stabilizes the latent space, preventing the injection of high-variance noise into the backbone’s
+context; second, it ensures reproducibility of the
+reasoning trajectory given the same context state.
+Cache Management and Injection. A critical
+implementation detail lies in the management of the
+Key-Value (KV) Cache (Line 10). When memory
+M is synthesized, it is not merely concatenated to
+the input prompt string. Instead, the continuous
+embeddings of M are fed through the backbone
+to generate their corresponding KV pairs, which
+are then appended to the active KV cache K, V.
+This allows the backbone to attend to these virtual
+memory tokens in all subsequent steps as if they
+were part of the physical context window, without
+requiring re-computation of the prior history.
+
+System Prompt: You are an expert Mathematics Evaluator.
+Your task is to inspect a given solution trajectory for a
+math problem and identify the first step where a logical or
+calculation error occurs.
+Input:
+• Question: [Input Question]
+• Gold Solution: [Ground Truth Reference]
+• Model Trajectory: [Model’s Reasoning Output]
+Instructions:
+
+Algorithm 1 FlashMem Inference Loop
+1: Input: Prompt x, Backbone πθ , Consolidator Cψ , Threshold τ
+2: Initialize: KV Cache K, V ← ∅, Context c ← x
+3: while not end of generation do
+4:
+Logits, Attentions, hlast ← πθ (c, K, V)
+5:
+Hcurrent ← CalcEntropy(Attentions)
+6:
+if Hcurrent > τ then ▷ High Uncertainty Detected
+7:
+m0 ← Project(hlast )
+8:
+M ← GreedyGen(Cψ , m0 , K, V, steps = 8)
+9:
+Inject: Soft-append M to Backbone Input
+10:
+Update K, V with M states
+11:
+end if
+12:
+xnext ← Sample(Logits)
+13:
+c ← xnext
+14: end while
+
+1. Compare the Model Trajectory against the Gold Solution step-by-step.
+2. Identify the first step index (0-indexed) where the
+reasoning is flawed. If the reasoning is strictly correct
+but diverges in method, do not count it as an error
+unless it leads to a wrong answer.
+3. If the entire trajectory is correct, return -1.
+Output Format:
+Return a JSON object: {"error_found": boolean,
+"first_error_step": int, "reason": "string"}
+
+Table 7: The evaluation prompt used for the LLM-as-aJudge error localization analysis.
+
+13
+
+Temporal Alignment Analysis. We collected
+the error timestamps returned by the judge and
+aligned them with the time-series entropy logs
+recorded during the generation of the Vanilla trajectories. This alignment revealed a distinct synchronization pattern where significant spikes in attention entropy consistently precede or coincide with
+the steps identified as erroneous. This empirical
+evidence validates our core premise that attention
+entropy serves as a reliable real-time proxy for
+model confusion, providing the physical basis for
+the unstable high-entropy behavior observed in the
+Vanilla baseline (Figure 3).
+
+2. Window Definition: We established a local
+analysis window W with a fixed horizon of
+L = 10 tokens subsequent to the trigger point,
+encompassing the interval [t, t + L]. This window captures the immediate downstream effect of the injected memory on the internal
+state of the backbone.
+3. Metric Calculation: We computed the mean
+attention entropy H within this specific window for the FlashMem trajectory and contrasted it with the mean entropy of the Vanilla
+baseline measured at identical positional indices. This point-to-point comparison neutralizes variance caused by position-dependent
+entropy shifts.
+
+B.2 Statistical Protocol for Entropy Reduction
+Table 5 in the main text reports the statistical impact
+of FlashMem on reducing model uncertainty. Here,
+we define the paired control experiment designed
+to isolate the causal effect of memory injection on
+attention entropy.
+
+Quantification Metrics. The net reduction effect
+for each triggered sample i is quantified as the
+difference between the counterfactual baseline and
+the treated state:
+
+Data Construction. To ensure a fair comparison,
+we utilized a twin-run data collection strategy. We
+collected inference traces from two distinct execution modes on the same set of evaluation prompts:
+
+(i)
+
+(i)
+
+∆Hi = Hvanilla [t : t+L]−Hflashmem [t : t+L] (8)
+A positive ∆Hi indicates that the injection of memory successfully lowered model uncertainty. Based
+on the distribution of ∆Hi , we derived the following statistical indicators:
+
+• FlashMem Trajectories (Treatment Group):
+Data collected from the model equipped with
+the full FlashMem mechanism. These traces
+include an augmentation mask that explicitly
+logs the timestamp t of every memory injection event triggered by the Cognitive Monitor.
+
+• Probability of Reduction:
+Defined as
+P (∆Hi > 0). This represents the frequency
+with which memory injection successfully stabilizes the attention distribution.
+
+• Vanilla Trajectories (Control Group): Data
+collected from the base model without memory augmentation. We enforced the model to
+process the same prompts to use the Vanilla
+generation as a counterfactual baseline for entropy levels without intervention.
+
+• Probability of Significant Reduction: The proportion of samples where ∆Hi > τsig (with
+τsig = 0.5). These instances typically correspond to critical moments where the synthesized memory resolves major ambiguity.
+
+Window-based Comparative Analysis. Entropy
+is a dynamic metric that fluctuates naturally with
+token distinctness. To systematically quantify the
+immediate local impact of memory injection and filter out global noise, we employed a window-based
+difference-in-differences statistical approach:
+
+the magnitude of the improvement relative to
+the initial confusion level.
+
+• Relative Reduction Percentage: A normalized
+i
+metric calculated as ∆H
+× 100%, reflecting
+(i)
+Hvanilla
+
+This paired design ensures that the observed entropy drop is causally linked to the FlashMem intervention, confirming that the latent context directly enhances model certainty rather than being
+an artifact of token positioning.
+
+1. Trigger Identification: For each sample in the
+FlashMem group, we identified the trigger index t corresponding to the activation of the
+augmentation mask where the Cognitive Monitor determined H > τ . Valid triggers were
+restricted to indices t > 5 to mitigate the confounding effects of initial generation instability.
+
+C
+
+Analysis of Entropy Dynamics and
+Threshold Selection
+
+The Cognitive Monitor regulates the initiation of
+memory consolidation via a decision threshold τ .
+14
+
+Our empirical analysis indicates that absolute attention entropy is not a universal constant; rather,
+it fluctuates significantly depending on the underlying model architecture and the structural properties of the prompt. In this section, we delineate
+these governing dynamics and detail the statistical methodology employed for adaptive threshold
+determination.
+C.1
+
+tive outliers—instances where the model deviates
+significantly from its standard confidence baseline.
+To capture these outliers accurately, we calibrate
+τ based on the entropy distribution observed on a
+representative validation subset prior to inference.
+Formally, the threshold is determined via the percentile function:
+τ = Percentile({Hi }N
+i=1 , Ptarget )
+
+Empirical Trends in Attention Entropy
+
+In our experiments, we configure Ptarget to target the upper tail of the distribution, specifically
+the 85th percentile. This configuration serves as
+an effective filter, suppressing routine generation
+noise while preserving sensitivity to significant uncertainty peaks. These peaks typically correspond
+to critical decision points where the model requires
+external memory support. This statistical approach
+allows FlashMem to automatically adapt the absolute threshold to the specific characteristics of the
+model and task distribution, eliminating the need
+for manual fine-tuning.
+
+Model Scale and Confidence We observed a distinct inverse correlation between model parameter
+count and intrinsic entropy levels. Larger language
+models typically manifest sharper attention distributions, concentrating probability mass on fewer
+tokens. This behavior reflects a higher degree of
+internal confidence in next-token predictions compared to smaller architectures, which often exhibit
+more diffuse attention patterns. Consequently, a
+static threshold suitable for a smaller model would
+be insufficiently sensitive for a larger one. To maintain consistent monitoring performance, the absolute value of τ must scale inversely with model
+size, ensuring that the system remains responsive
+to relative drops in confidence rather than absolute
+magnitude.
+
+D
+
+Detailed Visualization of Attention
+Dynamics
+
+In this section, we provide the detailed qualitative
+analysis and visualization regarding the KodCode
+error case mentioned in Section 5.
+
+Task Topology and Solution Space The baseline entropy profile is further modulated by the
+topology of the task solution space. Tasks characterized by vast, open-ended search spaces, such as
+code generation or creative writing, naturally induce higher entropy fluctuations due to the validity
+of multiple divergent generation paths. In contrast, tasks requiring convergent reasoning, such as
+arithmetic or strict logic, typically operate within a
+lower entropy regime. Summarization and general
+knowledge retrieval generally fall between these
+extremes. These variations imply that the definition
+of a high-uncertainty state is relative. A specific
+entropy value indicating confusion in a math task
+might represent a normal operating state in a creative writing context.
+C.2
+
+(9)
+
+Semantic Extraction via Cross-Attention. The
+Top Panel of Figure 4 illustrates the CrossAttention weights of the Memory Consolidator during latent token generation. We observe that the
+Consolidator exhibits highly selective attention, focusing intensely on specific regions of the input
+context (highlighted in the heatmap). A detailed
+inspection reveals that these high-weight regions
+align with semantically salient segments within the
+extensive history, which are essential for the current prediction. This confirms that the Shared-KV
+mechanism effectively functions as a semantic filter, extracting and compressing key dependencies
+from the raw history into the latent space.
+
+Distribution-Aware Selection Strategy
+
+Sustained Reference via Self-Attention. The
+Middle Panel visualizes the Self-Attention of the
+FlashMem backbone during the subsequent text
+generation phase. To facilitate observation, we inserted latent tokens at fixed intervals (marked by a
+yellow box). The red dashed line demarcates the
+boundary between the input prompt and the modelgenerated text. A striking pattern emerges: there
+
+In light of these architectural and task-dependent
+variations, relying on a fixed heuristic value for
+τ is suboptimal. We instead adopt a distributionaware strategy to calibrate the activation boundary
+dynamically.
+We conceptualize memory injection as an intervention mechanism specifically designed for cogni15
+
+ $ W W H Q W L R Q  Y L V X D O L ] D W L R Q V   ) O D V K 0 H P  Y V  9 D Q L O O D 
+
+Figure 4: Visualization of Attention Dynamics. Top:
+Consolidator’s cross-attention accurately targets key information (e.g., variable definitions) in the context. Middle: FlashMem’s backbone consistently attends to the
+injected latent tokens (marked by yellow boxes) throughout generation, as evidenced by the continuous vertical
+attention lines. Bottom: The Vanilla model exhibits diffuse attention, failing to capture distant dependencies.
+
+are five distinct vertical attention bands aligned perfectly with the inserted latent tokens. This indicates
+that throughout the generation process, the backbone consistently attends back to these latent embeddings. These memory tokens effectively function as high-density semantic anchors, providing
+continuous support for ongoing reasoning.
+Comparison with Vanilla Baseline. In contrast,
+without the guidance of latent memory, the attention distribution appears significantly more diffuse
+and lacks structural focus. The model fails to maintain focus on the distant variable definitions (which
+appear dark in the map), leading to the loss of critical context and the subsequent hallucination of
+undefined variables. This comparison strongly validates our hypothesis: FlashMem succeeds not by
+simply extending context length, but by creating
+explicit, accessible semantic bridges that the model
+actively utilizes.
+
+16
+
+E
+
+Extended Qualitative Analysis
+
+trick questions or applying irrelevant real-world
+constraints that contradict the mathematical abstraction.
+Table 8 (Case 3) details a problem asking for
+egg consumption. The baseline model performs
+the arithmetic correctly but then rejects the result
+in the final step, arguing that "making" is not "eating." FlashMem performs the same calculations,
+but when approaching the conclusion, the memory
+injection stabilizes the model’s focus on the quantitative accumulation task, suppressing the generation of the semantic refusal.
+
+In this section, we present a detailed analysis of
+failure modes in mathematical reasoning using the
+GSM8K benchmark. We select three representative
+cases from the test set where the baseline model
+fails due to input hallucination, variable binding
+errors, or over-reasoning.
+In the comparative tables below, we explicitly
+identify the decision points where the FlashMem
+cognitive monitor triggers a latent memory injection. These interventions serve to refresh critical
+context and steer the reasoning trajectory back to
+the correct logical path compared to the baseline.
+E.1
+
+Correction of Input Information
+Hallucination
+
+Reasoning tasks often require precise extraction
+of numerical values from natural language descriptions. A common failure mode is input hallucination, where the model correctly identifies the entity
+but assigns it an incorrect value derived from internal priors.
+Table 8 (Case 1) illustrates a time calculation
+problem. The prompt specifies that peeling a potato
+takes "a minute and a half" (90 seconds). The baseline model hallucinates a value of "1 minute and 15
+seconds." In the FlashMem trajectory, the memory
+mechanism triggers immediately at the unit conversion step. This injection acts as a semantic anchor,
+enforcing adherence to the specific text span in the
+input history, thereby overriding the hallucination.
+E.2
+
+Rectification of Variable Binding
+
+Complex problems often involve multiple subsets
+of a population. Models frequently struggle with
+variable binding, applying a rate or ratio to the
+wrong subset after intermediate calculations.
+Table 8 (Case 2) presents a party planning scenario. The constraint is explicit: gift bags are
+needed for each "invited guest." The baseline
+model calculates the attendees correctly but then
+erroneously applies the gift bag ratio to this new
+number. For FlashMem, the memory injection occurs after the attendee calculation. This intervention refreshes the original constraint regarding the
+invited guests, correcting the operand selection for
+the final cost estimation.
+E.3
+
+Mitigation of Semantic Over-Reasoning
+
+Large language models can sometimes over-reason,
+interpreting straightforward problem statements as
+17
+
+C ASE 1: I NPUT I NFORMATION H ALLUCINATION
+Problem: Billy has 60 potatoes. It takes him a minute and a half to peel a potato, and 5 seconds to cut it. How long will it
+take to finish prepping the potatoes?
+BASELINE G ENERATION
+
+F LASH M EM G ENERATION
+
+Let’s break down the time per potato.
+First, convert the peeling time.
+
+[Latent Memory Injection Triggered]
+,→ Retrieving precise duration: "minute and a half" implies
+90s.
+Let’s break down the time per potato.
+First, convert the peeling time.
+1 minute and 30 seconds = 60 + 30 = 90 seconds.
+The time to cut is 5 seconds.
+So, total time per potato:
+90 + 5 = 95 seconds.
+Now for 60 potatoes:
+60 × 95 = 5700 seconds.
+Convert to minutes: 5700/60 = 95.
+Final Answer: 95
+
+1 minute and 15 seconds = 75 seconds.
+The time to cut is 5 seconds.
+So, total time per potato:
+75 + 5 = 80 seconds.
+Now for 60 potatoes:
+60 × 80 = 4800 seconds.
+Convert to minutes: 4800/60 = 80.
+Final Answer: 80
+
+C ASE 2: VARIABLE B INDING E RROR
+Problem: Christina needs 0.75 gift bags per invited guest. She invited 16 friends, but 1/4 don’t show up. Gift bags are $2
+each. How much will she spend?
+BASELINE G ENERATION
+
+F LASH M EM G ENERATION
+
+Step 1: Determine guests attending.
+Total invited = 16.
+Guests not showing up = 1/4 × 16 = 4.
+Guests attending = 16 − 4 = 12.
+
+Step 1: Determine guests attending.
+Total invited = 16.
+Guests not showing up = 1/4 × 16 = 4.
+Guests attending = 16 − 4 = 12.
+
+Step 2: Determine gift bags needed.
+We need 0.75 bags per guest.
+
+[Latent Memory Injection Triggered]
+,→ Refreshing constraint: Ratio applies to "Invited" (16), not
+"Attending".
+Step 2: Determine gift bags needed.
+The problem states 0.75 bags per invited guest.
+So, 0.75 × 16 = 12 bags.
+
+So, 0.75 × 12 = 9 bags.
+
+Step 3: Calculate total cost.
+9 × $2 = $18.
+Final Answer: 18
+
+Step 3: Calculate total cost.
+12 × $2 = $24.
+Final Answer: 24
+
+C ASE 3: S EMANTIC OVER -R EASONING
+Problem: Claire makes a 3 egg omelet every morning. How many dozens of eggs will she eat in 4 weeks?
+BASELINE G ENERATION
+
+F LASH M EM G ENERATION
+
+Step 1: Calculate daily usage.
+She uses 3 eggs per day.
+Step 2: Calculate 4 weeks usage.
+4 weeks = 28 days.
+Total eggs = 3 × 28 = 84 eggs.
+Step 3: Convert to dozens.
+84/12 = 7 dozens.
+
+Step 1: Calculate daily usage.
+She uses 3 eggs per day.
+Step 2: Calculate 4 weeks usage.
+4 weeks = 28 days.
+Total eggs = 3 × 28 = 84 eggs.
+Step 3: Convert to dozens.
+84/12 = 7 dozens.
+
+Step 4: Final Verification.
+Wait, the question asks what she will eat.
+
+[Latent Memory Injection Triggered]
+,→ Suppressing distractor: "Making" implies "Eating" in this
+math context.
+Step 4: Final Verification.
+The calculation holds. She consumes 7 dozens.
+Final Answer: 7
+
+She is making them, not eating them.
+Therefore, the answer is 0.
+Final Answer: 0
+
+Table 8: Qualitative comparison on GSM8K. We display the complete reasoning chain for both models. The blue
+markers indicate the exact moment the FlashMem mechanism intervenes. The accompanying text describes the
+semantic correction provided by the memory to the ongoing generation state.
+
+18
+
+
