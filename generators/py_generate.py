@@ -9,18 +9,22 @@ from .generator_utils import generic_generate_func_impl, \
                              generate_self_reflection_diverse_oneshot_parametric
 
 from typing import Optional, List, Union, Dict, Callable
-from together import Together
 import os
 import ast
 import re
 from .parse import parse_code_block, add_code_block
-from openai import OpenAI
+from api_client_utils import get_openai_client
 import sys
 from tenacity import (
     retry,
     stop_after_attempt,  # type: ignore
     wait_random_exponential,  # type: ignore
 )
+
+try:
+    from together import Together
+except ImportError:
+    Together = None
 
 PY_SIMPLE_COMPLETION_INSTRUCTION = "# Write the body of this function only."
 PY_REFLEXION_COMPLETION_INSTRUCTION = "You are a Python writing assistant. You will be given your past function implementation, a series of unit tests, and a hint to change the implementation appropriately. Write your full implementation (restate the function signature).\n\n-----"
@@ -876,7 +880,7 @@ class PyGenerator(Generator):
         examples for a given function signature, based on preliminary insights.
         """
         # Initialize the GPT-4o-mini client
-        client = OpenAI()
+        client = get_openai_client(round_robin=True)
 
         # Build the chat messages
         messages: List[Dict[str, str]] = []
@@ -923,7 +927,11 @@ class PyGenerator(Generator):
         2) five flawed Python snippets illustrating those pitfalls.
         """
         # ---------- initialise Together client -------------------------
-        client = Together(api_key=os.environ.get("TOGETHER_API_KEY", "xxxxx"))
+        use_together = Together is not None and os.environ.get("TOGETHER_API_KEY")
+        if use_together:
+            client = Together(api_key=os.environ.get("TOGETHER_API_KEY"))
+        else:
+            client = get_openai_client(round_robin=True)
 
         # ---------- craft chat messages --------------------------------
         messages: List[Dict[str, str]] = [
@@ -944,8 +952,15 @@ class PyGenerator(Generator):
         ]
 
         # ---------- call Together chat API -----------------------------
+        relay_alias = {
+            "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo": "llama-3.1-8b-instruct",
+            "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": "llama-3.1-70b-instruct",
+            "meta-llama/Llama-3.1-405B-Instruct-Turbo": "llama-3.1-405b-instruct",
+        }
+        request_model = model_name if use_together else relay_alias.get(model_name, model_name)
+
         response = client.chat.completions.create(
-            model=model_name,
+            model=request_model,
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,
@@ -1156,4 +1171,3 @@ def py_is_syntax_valid(code: str) -> bool:
         return True
     except Exception:
         return False
-

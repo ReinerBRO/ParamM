@@ -1,7 +1,6 @@
 import os
 import json
 import boto3
-import openai
 import logging
 import jsonlines
 import numpy as np
@@ -10,19 +9,14 @@ from typing import List
 from termcolor import colored
 
 from botocore.exceptions import ClientError
+from api_client_utils import get_openai_client as get_relay_openai_client
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Lazy initialization of OpenAI client to avoid requiring API key when not needed
-_openai_client = None
-
-def get_openai_client():
-    """Lazy initialization of OpenAI client"""
-    global _openai_client
-    if _openai_client is None:
-        _openai_client = openai.OpenAI()
-    return _openai_client
+def get_openai_client(round_robin: bool = False):
+    """OpenAI-compatible client (supports relay base_url + key rotation)."""
+    return get_relay_openai_client(round_robin=round_robin)
 
 
 def generate_text_embeddings(model_id, body):
@@ -103,7 +97,7 @@ def generate_openai_text_embeddings(model_id, body):
     Returns:
         dict: The response from OpenAI's API.
     """
-    client = get_openai_client()
+    client = get_openai_client(round_robin=True)
     logger.info("Generating text embeddings with OpenAI model %s", model_id)
 
     try:

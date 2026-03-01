@@ -260,7 +260,8 @@ def run_dot(
                 else:
                     if visible_tests:
                         print("using visible test cases")
-                        tests_i = visible_tests[identifier]['given_tests']
+                        tests_key = item.get("task_id", identifier)
+                        tests_i = visible_tests[tests_key]['given_tests']
                     else:
                         print("generating synthetic test cases")
                         tests_i = gen.internal_tests(prompt, model, 1)
@@ -609,7 +610,8 @@ def run_dot(
                     tests_i = item['visible_tests']
                 else:
                     if visible_tests:
-                        tests_i = visible_tests[identifier]['given_tests']
+                        tests_key = item.get("task_id", identifier)
+                        tests_i = visible_tests[tests_key]['given_tests']
                     else:
                         tests_i = gen.internal_tests(prompt, model, 1)
 

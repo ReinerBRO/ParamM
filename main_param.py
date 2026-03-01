@@ -2,8 +2,10 @@ import os
 import argparse
 import sys
 from simple import run_simple
-from reflexion_parametric import run_reflexion
-# from reflexion import run_reflexion
+try:
+    from reflexion_parametric import run_reflexion
+except ImportError:
+    from reflexion import run_reflexion
 # from test_acc import run_test_acc
 from utils import read_jsonl, read_jsonl_gz, read_jsonl_map
 import json
@@ -135,7 +137,8 @@ pass@k: {args.pass_at_k}
     run_strategy = strategy_factory(args.strategy)
     # for visible test cases for HumanEval only
     if dataset_type == 'humaneval':
-        visible_tests = read_jsonl_map("benchmarks/humaneval_visible_tests.jsonl", primary_key='entry_point')
+        # Use task_id to avoid collisions from duplicated entry_point names.
+        visible_tests = read_jsonl_map("benchmarks/humaneval_visible_tests.jsonl", primary_key='task_id')
     else:
         visible_tests = None
     # print (run_strategy)
@@ -214,6 +217,3 @@ pass@k: {args.pass_at_k}
 if __name__ == "__main__":
     args = get_args()
     main(args)
-
-
-

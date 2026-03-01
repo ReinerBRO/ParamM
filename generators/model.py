@@ -1,9 +1,10 @@
 from typing import List, Union, Optional, Literal
 import dataclasses
-
-
-
+import os
+import re
 import sys
+from http import HTTPStatus
+
 sys.path.append('../')
 import gpt_usage
 
@@ -12,29 +13,28 @@ from tenacity import (
     stop_after_attempt,  # type: ignore
     wait_random_exponential,  # type: ignore
 )
-from openai import OpenAI
-from together import Together
-# NEW: DashScope native SDK
-import os
-from http import HTTPStatus
-import dashscope
-from dashscope import Generation
-import re
+from api_client_utils import get_openai_client as get_relay_openai_client
+
+try:
+    from together import Together
+except ImportError:
+    Together = None
+
+try:
+    import dashscope
+    from dashscope import Generation
+except ImportError:
+    dashscope = None
+    Generation = None
 
 
 
 def remove_unicode_chars(text: str) -> str:
     return re.sub(r'[^\x00-\x7F]+', '', text)
 
-# Initialize OpenAI client lazily to avoid requiring API key when not needed
-_openai_client = None
-
-def get_openai_client():
-    """Lazy initialization of OpenAI client"""
-    global _openai_client
-    if _openai_client is None:
-        _openai_client = OpenAI()
-    return _openai_client
+# Initialize OpenAI-compatible client lazily (supports relay base_url + key rotation)
+def get_openai_client(round_robin: bool = False):
+    return get_relay_openai_client(round_robin=round_robin)
 
 # Together client singleton to avoid repeated instantiation (prevents memory leak)
 _together_client = None
@@ -42,6 +42,8 @@ _together_client = None
 def get_together_client():
     """Lazy initialization of Together client"""
     global _together_client
+    if Together is None:
+        return None
     if _together_client is None:
         _together_client = Together(
             api_key=os.environ.get("TOGETHER_API_KEY", "xxxxx"),
@@ -65,6 +67,23 @@ def messages_to_str(messages: List[Message]) -> str:
     return "\n".join([message_to_str(message) for message in messages])
 
 
+def _relay_model_alias(model: str) -> str:
+    """
+    Map Together-style model ids to zhizengzeng/OpenAI-compatible relay ids.
+    """
+    alias = {
+        "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo": "llama-3.1-8b-instruct",
+        "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": "llama-3.1-70b-instruct",
+        "meta-llama/Llama-3.1-405B-Instruct-Turbo": "llama-3.1-405b-instruct",
+        "mistralai/Mistral-7B-Instruct-v0.2": "qwen2.5-7b-instruct",
+        "Qwen/Qwen2.5-7B-Instruct-Turbo": "qwen2.5-7b-instruct",
+        "Qwen/Qwen3-Next-80B-A3B-Instruct": "qwen3-30b-a3b",
+        "arize-ai/qwen-2-1.5b-instruct": "qwen2-1.5b-instruct",
+        "openai/gpt-oss-20b": "gpt-oss-20b",
+    }
+    return alias.get(model, model)
+
+
 @retry(wait=wait_random_exponential(min=1, max=180), stop=stop_after_attempt(6))
 def aliyun_chat(
     model: str,
@@ -86,6 +105,9 @@ def aliyun_chat(
     Returns:
         str if num_comps==1 else List[str].
     """
+    if Generation is None:
+        raise ImportError("dashscope is not installed; aliyun_chat is unavailable.")
+
     ds_messages = [{"role": m.role, "content": m.content} for m in messages]
     outs: List[str] = []
     for _ in range(num_comps):
@@ -124,7 +146,7 @@ def gpt_completion(
         temperature: float = 0.0,
         num_comps=1,
 ) -> Union[List[str], str]:
-    client = get_openai_client()
+    client = get_openai_client(round_robin=True)
     response = client.completions.create(model=model,
     prompt=prompt,
     temperature=temperature,
@@ -153,7 +175,7 @@ def gpt_chat(
     temperature: float = 0.0,
     num_comps=1,
 ) -> Union[List[str], str]:
-    client = get_openai_client()
+    client = get_openai_client(round_robin=True)
 
     if model == "o1-mini" or model == "o1-preview":
         m = [dataclasses.asdict(message) for message in messages]
@@ -222,8 +244,12 @@ def together_chat(
         Union[List[str], str]: Model response(s) as string or list of strings.
     """
     
-    # Use singleton client to avoid repeated instantiation (prevents memory leak)
-    client = get_together_client()
+    # Prefer Together when key is present; otherwise fall back to OpenAI-compatible relay.
+    use_together = Together is not None and os.environ.get("TOGETHER_API_KEY")
+    if use_together:
+        client = get_together_client()
+    else:
+        client = get_openai_client(round_robin=True)
 
     # Convert internal Message format to OpenAI-style schema
     converted_messages = [
@@ -231,8 +257,9 @@ def together_chat(
     ]
 
     # Call Together chat API
+    request_model = model if use_together else _relay_model_alias(model)
     response = client.chat.completions.create(
-        model=model,
+        model=request_model,
         messages=converted_messages,
         max_tokens=max_tokens,
         temperature=temperature,
@@ -523,4 +550,3 @@ if __name__ == "__main__":
     
     print(f"Model response: {response}")
     
-

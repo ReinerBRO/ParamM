@@ -1,0 +1,164 @@
+{"task_id": "HumanEval/0", "entry_point": "has_close_elements", "given_tests": ["assert has_close_elements([1.0, 2.0, 3.0], 0.5) == False", "assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) == True"]}
+{"task_id": "HumanEval/1", "entry_point": "separate_paren_groups", "given_tests": ["assert separate_paren_groups('( ) (( )) (( )( ))') == ['()', '(())', '(()())']"]}
+{"task_id": "HumanEval/2", "entry_point": "truncate_number", "given_tests": ["assert truncate_number(3.5) == 0.5"]}
+{"task_id": "HumanEval/3", "entry_point": "below_zero", "given_tests": ["assert below_zero([1, 2, 3]) == False", "assert below_zero([1, 2, -4, 5]) == True"]}
+{"task_id": "HumanEval/4", "entry_point": "mean_absolute_deviation", "given_tests": ["assert mean_absolute_deviation([1.0, 2.0, 3.0, 4.0]) == 1.0"]}
+{"task_id": "HumanEval/5", "entry_point": "intersperse", "given_tests": ["assert intersperse([], 4) == []", "assert intersperse([1, 2, 3], 4) == [1, 4, 2, 4, 3]"]}
+{"task_id": "HumanEval/6", "entry_point": "parse_nested_parens", "given_tests": ["assert parse_nested_parens('(()()) ((())) () ((())()())') == [2, 3, 1, 3]"]}
+{"task_id": "HumanEval/7", "entry_point": "filter_by_substring", "given_tests": ["assert filter_by_substring([], 'a') == []", "assert filter_by_substring(['abc', 'bacd', 'cde', 'array'], 'a') == ['abc', 'bacd', 'array']"]}
+{"task_id": "HumanEval/8", "entry_point": "sum_product", "given_tests": ["assert sum_product([]) == (0, 1)", "assert sum_product([1, 2, 3, 4]) == (10, 24)"]}
+{"task_id": "HumanEval/9", "entry_point": "rolling_max", "given_tests": ["assert rolling_max([1, 2, 3, 2, 3, 4, 2]) == [1, 2, 3, 3, 3, 4, 4]"]}
+{"task_id": "HumanEval/10", "entry_point": "make_palindrome", "given_tests": ["assert make_palindrome('') == ''", "assert make_palindrome('cat') == 'catac'", "assert make_palindrome('cata') == 'catac'"]}
+{"task_id": "HumanEval/11", "entry_point": "string_xor", "given_tests": ["assert string_xor('010', '110') == '100'"]}
+{"task_id": "HumanEval/12", "entry_point": "longest", "given_tests": ["assert longest(['a', 'b', 'c']) == 'a'", "assert longest(['a', 'bb', 'ccc']) == 'ccc'"]}
+{"task_id": "HumanEval/13", "entry_point": "greatest_common_divisor", "given_tests": ["assert greatest_common_divisor(3, 5) == 1", "assert greatest_common_divisor(25, 15) == 5"]}
+{"task_id": "HumanEval/14", "entry_point": "all_prefixes", "given_tests": ["assert all_prefixes('abc') == ['a', 'ab', 'abc']"]}
+{"task_id": "HumanEval/15", "entry_point": "string_sequence", "given_tests": ["assert string_sequence(0) == '0'", "assert string_sequence(5) == '0 1 2 3 4 5'"]}
+{"task_id": "HumanEval/16", "entry_point": "count_distinct_characters", "given_tests": ["assert count_distinct_characters('xyzXYZ') == 3", "assert count_distinct_characters('Jerry') == 4"]}
+{"task_id": "HumanEval/17", "entry_point": "parse_music", "given_tests": ["assert parse_music('o o| .| o| o| .| .| .| .| o o') == [4, 2, 1, 2, 2, 1, 1, 1, 1, 4, 4]"]}
+{"task_id": "HumanEval/18", "entry_point": "how_many_times", "given_tests": ["assert how_many_times('', 'a') == 0", "assert how_many_times('aaa', 'a') == 3", "assert how_many_times('aaaa', 'aa') == 3"]}
+{"task_id": "HumanEval/19", "entry_point": "sort_numbers", "given_tests": ["assert sort_numbers('three one five') == 'one three five'"]}
+{"task_id": "HumanEval/20", "entry_point": "find_closest_elements", "given_tests": ["assert find_closest_elements([1.0, 2.0, 3.0, 4.0, 5.0, 2.2]) == (2.0, 2.2)", "assert find_closest_elements([1.0, 2.0, 3.0, 4.0, 5.0, 2.0]) == (2.0, 2.0)"]}
+{"task_id": "HumanEval/21", "entry_point": "rescale_to_unit", "given_tests": ["assert rescale_to_unit([1.0, 2.0, 3.0, 4.0, 5.0]) == [0.0, 0.25, 0.5, 0.75, 1.0]"]}
+{"task_id": "HumanEval/22", "entry_point": "filter_integers", "given_tests": ["assert filter_integers(['a', 3.14, 5]) == [5]", "assert filter_integers([1, 2, 3, 'abc', {}, []]) == [1, 2, 3]"]}
+{"task_id": "HumanEval/23", "entry_point": "strlen", "given_tests": ["assert strlen('') == 0", "assert strlen('abc') == 3"]}
+{"task_id": "HumanEval/24", "entry_point": "largest_divisor", "given_tests": ["assert largest_divisor(15) == 5"]}
+{"task_id": "HumanEval/25", "entry_point": "factorize", "given_tests": ["assert factorize(8) == [2, 2, 2]", "assert factorize(25) == [5, 5]", "assert factorize(70) == [2, 5, 7]"]}
+{"task_id": "HumanEval/26", "entry_point": "remove_duplicates", "given_tests": ["assert remove_duplicates([1, 2, 3, 2, 4]) == [1, 3, 4]"]}
+{"task_id": "HumanEval/27", "entry_point": "flip_case", "given_tests": ["assert flip_case('Hello') == 'hELLO'"]}
+{"task_id": "HumanEval/28", "entry_point": "concatenate", "given_tests": ["assert concatenate([]) == ''", "assert concatenate(['a', 'b', 'c']) == 'abc'"]}
+{"task_id": "HumanEval/29", "entry_point": "filter_by_prefix", "given_tests": ["assert filter_by_prefix([], 'a') == []", "assert filter_by_prefix(['abc', 'bcd', 'cde', 'array'], 'a') == ['abc', 'array']"]}
+{"task_id": "HumanEval/30", "entry_point": "get_positive", "given_tests": ["assert get_positive([-1, 2, -4, 5, 6]) == [2, 5, 6]", "assert get_positive([5, 3, -5, 2, -3, 3, 9, 0, 123, 1, -10]) == [5, 3, 2, 3, 9, 123, 1]"]}
+{"task_id": "HumanEval/31", "entry_point": "is_prime", "given_tests": ["assert is_prime(6) == False", "assert is_prime(101) == True", "assert is_prime(11) == True", "assert is_prime(13441) == True", "assert is_prime(61) == True", "assert is_prime(4) == False", "assert is_prime(1) == False"]}
+{"task_id": "HumanEval/32", "entry_point": "find_zero", "given_tests": ["assert round(find_zero([1, 2]), 2) # f(x) = 1 + 2x == -0.5", "assert round(find_zero([-6, 11, -6, 1]), 2) # (x - 1) * (x - 2) * (x - 3) = -6 + 11x - 6x^2 + x^3 == 1.0"]}
+{"task_id": "HumanEval/33", "entry_point": "sort_third", "given_tests": ["assert sort_third([1, 2, 3]) == [1, 2, 3]", "assert sort_third([5, 6, 3, 4, 8, 9, 2]) == [2, 6, 3, 4, 8, 9, 5]"]}
+{"task_id": "HumanEval/34", "entry_point": "unique", "given_tests": ["assert unique([5, 3, 5, 2, 3, 3, 9, 0, 123]) == [0, 2, 3, 5, 9, 123]"]}
+{"task_id": "HumanEval/35", "entry_point": "max_element", "given_tests": ["assert max_element([1, 2, 3]) == 3", "assert max_element([5, 3, -5, 2, -3, 3, 9, 0, 123, 1, -10]) == 123"]}
+{"task_id": "HumanEval/36", "entry_point": "fizz_buzz", "given_tests": ["assert fizz_buzz(50) == 0", "assert fizz_buzz(78) == 2", "assert fizz_buzz(79) == 3"]}
+{"task_id": "HumanEval/37", "entry_point": "sort_even", "given_tests": ["assert sort_even([1, 2, 3]) == [1, 2, 3]", "assert sort_even([5, 6, 3, 4]) == [3, 6, 5, 4]"]}
+{"task_id": "HumanEval/38", "entry_point": "decode_cyclic", "given_tests": []}
+{"task_id": "HumanEval/39", "entry_point": "prime_fib", "given_tests": ["assert prime_fib(1) == 2", "assert prime_fib(2) == 3", "assert prime_fib(3) == 5", "assert prime_fib(4) == 13", "assert prime_fib(5) == 89"]}
+{"task_id": "HumanEval/40", "entry_point": "triples_sum_to_zero", "given_tests": ["assert triples_sum_to_zero([1, 3, 5, 0]) == False", "assert triples_sum_to_zero([1, 3, -2, 1]) == True", "assert triples_sum_to_zero([1, 2, 3, 7]) == False", "assert triples_sum_to_zero([2, 4, -5, 3, 9, 7]) == True", "assert triples_sum_to_zero([1]) == False"]}
+{"task_id": "HumanEval/41", "entry_point": "car_race_collision", "given_tests": []}
+{"task_id": "HumanEval/42", "entry_point": "incr_list", "given_tests": ["assert incr_list([1, 2, 3]) == [2, 3, 4]", "assert incr_list([5, 3, 5, 2, 3, 3, 9, 0, 123]) == [6, 4, 6, 3, 4, 4, 10, 1, 124]"]}
+{"task_id": "HumanEval/43", "entry_point": "pairs_sum_to_zero", "given_tests": ["assert pairs_sum_to_zero([1, 3, 5, 0]) == False", "assert pairs_sum_to_zero([1, 3, -2, 1]) == False", "assert pairs_sum_to_zero([1, 2, 3, 7]) == False", "assert pairs_sum_to_zero([2, 4, -5, 3, 5, 7]) == True", "assert pairs_sum_to_zero([1]) == False"]}
+{"task_id": "HumanEval/44", "entry_point": "change_base", "given_tests": ["assert change_base(8, 3) == '22'", "assert change_base(8, 2) == '1000'", "assert change_base(7, 2) == '111'"]}
+{"task_id": "HumanEval/45", "entry_point": "triangle_area", "given_tests": ["assert triangle_area(5, 3) == 7.5"]}
+{"task_id": "HumanEval/46", "entry_point": "fib4", "given_tests": ["assert fib4(5) == 4", "assert fib4(6) == 8", "assert fib4(7) == 14"]}
+{"task_id": "HumanEval/47", "entry_point": "median", "given_tests": ["assert median([3, 1, 2, 4, 5]) == 3", "assert median([-10, 4, 6, 1000, 10, 20]) == 15.0"]}
+{"task_id": "HumanEval/48", "entry_point": "is_palindrome", "given_tests": ["assert is_palindrome('') == True", "assert is_palindrome('aba') == True", "assert is_palindrome('aaaaa') == True", "assert is_palindrome('zbcd') == False"]}
+{"task_id": "HumanEval/49", "entry_point": "modp", "given_tests": ["assert modp(3, 5) == 3", "assert modp(1101, 101) == 2", "assert modp(0, 101) == 1", "assert modp(3, 11) == 8", "assert modp(100, 101) == 1"]}
+{"task_id": "HumanEval/50", "entry_point": "decode_shift", "given_tests": []}
+{"task_id": "HumanEval/51", "entry_point": "remove_vowels", "given_tests": ["assert remove_vowels('') == ''", "assert remove_vowels(\"abcdef\\nghijklm\") == 'bcdf\\nghjklm'", "assert remove_vowels('abcdef') == 'bcdf'", "assert remove_vowels('aaaaa') == ''", "assert remove_vowels('aaBAA') == 'B'", "assert remove_vowels('zbcd') == 'zbcd'"]}
+{"task_id": "HumanEval/52", "entry_point": "below_threshold", "given_tests": ["assert below_threshold([1, 2, 4, 10], 100) == True", "assert below_threshold([1, 20, 4, 10], 5) == False"]}
+{"task_id": "HumanEval/53", "entry_point": "add", "given_tests": ["assert add(2, 3) == 5", "assert add(5, 7) == 12"]}
+{"task_id": "HumanEval/54", "entry_point": "same_chars", "given_tests": ["assert same_chars('eabcdzzzz', 'dddzzzzzzzddeddabc') == True", "assert same_chars('abcd', 'dddddddabc') == True", "assert same_chars('dddddddabc', 'abcd') == True", "assert same_chars('eabcd', 'dddddddabc') == False", "assert same_chars('abcd', 'dddddddabce') == False", "assert same_chars('eabcdzzzz', 'dddzzzzzzzddddabc') == False"]}
+{"task_id": "HumanEval/55", "entry_point": "fib", "given_tests": ["assert fib(10) == 55", "assert fib(1) == 1", "assert fib(8) == 21"]}
+{"task_id": "HumanEval/56", "entry_point": "correct_bracketing", "given_tests": ["assert correct_bracketing(\"<\") == False", "assert correct_bracketing(\"<>\") == True", "assert correct_bracketing(\"<<><>>\") == True", "assert correct_bracketing(\"><<>\") == False"]}
+{"task_id": "HumanEval/57", "entry_point": "monotonic", "given_tests": ["assert monotonic([1, 2, 4, 20]) == True", "assert monotonic([1, 20, 4, 10]) == False", "assert monotonic([4, 1, 0, -10]) == True"]}
+{"task_id": "HumanEval/58", "entry_point": "common", "given_tests": ["assert common([1, 4, 3, 34, 653, 2, 5], [5, 7, 1, 5, 9, 653, 121]) == [1, 5, 653]", "assert common([5, 3, 2, 8], [3, 2]) == [2, 3]"]}
+{"task_id": "HumanEval/59", "entry_point": "largest_prime_factor", "given_tests": ["assert largest_prime_factor(13195) == 29", "assert largest_prime_factor(2048) == 2"]}
+{"task_id": "HumanEval/60", "entry_point": "sum_to_n", "given_tests": ["assert sum_to_n(30) == 465", "assert sum_to_n(100) == 5050", "assert sum_to_n(5) == 15", "assert sum_to_n(10) == 55", "assert sum_to_n(1) == 1"]}
+{"task_id": "HumanEval/61", "entry_point": "correct_bracketing", "given_tests": ["assert correct_bracketing(\"(\") == False", "assert correct_bracketing(\"()\") == True", "assert correct_bracketing(\"(()())\") == True", "assert correct_bracketing(\")(()\") == False"]}
+{"task_id": "HumanEval/62", "entry_point": "derivative", "given_tests": ["assert derivative([3, 1, 2, 4, 5]) == [1, 4, 12, 20]", "assert derivative([1, 2, 3]) == [2, 6]"]}
+{"task_id": "HumanEval/63", "entry_point": "fibfib", "given_tests": ["assert fibfib(1) == 0", "assert fibfib(5) == 4", "assert fibfib(8) == 24"]}
+{"task_id": "HumanEval/64", "entry_point": "vowels_count", "given_tests": ["assert vowels_count(\"abcde\") == 2", "assert vowels_count(\"ACEDY\") == 3"]}
+{"task_id": "HumanEval/65", "entry_point": "circular_shift", "given_tests": ["assert circular_shift(12, 1) == \"21\"", "assert circular_shift(12, 2) == \"12\""]}
+{"task_id": "HumanEval/66", "entry_point": "digitSum", "given_tests": []}
+{"task_id": "HumanEval/67", "entry_point": "fruit_distribution", "given_tests": []}
+{"task_id": "HumanEval/68", "entry_point": "pluck", "given_tests": []}
+{"task_id": "HumanEval/69", "entry_point": "search", "given_tests": []}
+{"task_id": "HumanEval/70", "entry_point": "strange_sort_list", "given_tests": []}
+{"task_id": "HumanEval/71", "entry_point": "triangle_area", "given_tests": []}
+{"task_id": "HumanEval/72", "entry_point": "will_it_fly", "given_tests": []}
+{"task_id": "HumanEval/73", "entry_point": "smallest_change", "given_tests": []}
+{"task_id": "HumanEval/74", "entry_point": "total_match", "given_tests": []}
+{"task_id": "HumanEval/75", "entry_point": "is_multiply_prime", "given_tests": []}
+{"task_id": "HumanEval/76", "entry_point": "is_simple_power", "given_tests": []}
+{"task_id": "HumanEval/77", "entry_point": "iscube", "given_tests": []}
+{"task_id": "HumanEval/78", "entry_point": "hex_key", "given_tests": []}
+{"task_id": "HumanEval/79", "entry_point": "decimal_to_binary", "given_tests": []}
+{"task_id": "HumanEval/80", "entry_point": "is_happy", "given_tests": []}
+{"task_id": "HumanEval/81", "entry_point": "numerical_letter_grade", "given_tests": []}
+{"task_id": "HumanEval/82", "entry_point": "prime_length", "given_tests": []}
+{"task_id": "HumanEval/83", "entry_point": "starts_one_ends", "given_tests": []}
+{"task_id": "HumanEval/84", "entry_point": "solve", "given_tests": []}
+{"task_id": "HumanEval/85", "entry_point": "add", "given_tests": []}
+{"task_id": "HumanEval/86", "entry_point": "anti_shuffle", "given_tests": []}
+{"task_id": "HumanEval/87", "entry_point": "get_row", "given_tests": []}
+{"task_id": "HumanEval/88", "entry_point": "sort_array", "given_tests": []}
+{"task_id": "HumanEval/89", "entry_point": "encrypt", "given_tests": []}
+{"task_id": "HumanEval/90", "entry_point": "next_smallest", "given_tests": []}
+{"task_id": "HumanEval/91", "entry_point": "is_bored", "given_tests": ["assert is_bored(\"Hello world\") == 0", "assert is_bored(\"The sky is blue. The sun is shining. I love this weather\") == 1"]}
+{"task_id": "HumanEval/92", "entry_point": "any_int", "given_tests": []}
+{"task_id": "HumanEval/93", "entry_point": "encode", "given_tests": ["assert encode('test') == 'TGST'", "assert encode('This is a message') == 'tHKS KS C MGSSCGG'"]}
+{"task_id": "HumanEval/94", "entry_point": "skjkasdkd", "given_tests": []}
+{"task_id": "HumanEval/95", "entry_point": "check_dict_case", "given_tests": []}
+{"task_id": "HumanEval/96", "entry_point": "count_up_to", "given_tests": []}
+{"task_id": "HumanEval/97", "entry_point": "multiply", "given_tests": []}
+{"task_id": "HumanEval/98", "entry_point": "count_upper", "given_tests": []}
+{"task_id": "HumanEval/99", "entry_point": "closest_integer", "given_tests": ["assert closest_integer(\"10\") == 10", "assert closest_integer(\"15.3\") == 15"]}
+{"task_id": "HumanEval/100", "entry_point": "make_a_pile", "given_tests": ["assert make_a_pile(3) == [3, 5, 7]"]}
+{"task_id": "HumanEval/101", "entry_point": "words_string", "given_tests": []}
+{"task_id": "HumanEval/102", "entry_point": "choose_num", "given_tests": []}
+{"task_id": "HumanEval/103", "entry_point": "rounded_avg", "given_tests": []}
+{"task_id": "HumanEval/104", "entry_point": "unique_digits", "given_tests": ["assert unique_digits([15, 33, 1422, 1]) == [1, 15, 33]", "assert unique_digits([152, 323, 1422, 10]) == []"]}
+{"task_id": "HumanEval/105", "entry_point": "by_length", "given_tests": []}
+{"task_id": "HumanEval/106", "entry_point": "f", "given_tests": []}
+{"task_id": "HumanEval/107", "entry_point": "even_odd_palindrome", "given_tests": []}
+{"task_id": "HumanEval/108", "entry_point": "count_nums", "given_tests": ["assert count_nums([1, 1, 2]) == 3 == \"\"\""]}
+{"task_id": "HumanEval/109", "entry_point": "move_one_ball", "given_tests": []}
+{"task_id": "HumanEval/110", "entry_point": "exchange", "given_tests": []}
+{"task_id": "HumanEval/111", "entry_point": "histogram", "given_tests": []}
+{"task_id": "HumanEval/112", "entry_point": "reverse_delete", "given_tests": []}
+{"task_id": "HumanEval/113", "entry_point": "odd_count", "given_tests": ["assert odd_count(['1234567']) == [\"the number of odd elements 4n the str4ng 4 of the 4nput.\"]", "assert odd_count(['3',\"11111111\"]) == [\"the number of odd elements 1n the str1ng 1 of the 1nput.\","]}
+{"task_id": "HumanEval/114", "entry_point": "minSubArraySum", "given_tests": []}
+{"task_id": "HumanEval/115", "entry_point": "max_fill", "given_tests": []}
+{"task_id": "HumanEval/116", "entry_point": "sort_array", "given_tests": ["assert sort_array([1, 0, 2, 3, 4]) == [0, 1, 2, 4, 3] == \"\"\""]}
+{"task_id": "HumanEval/117", "entry_point": "select_words", "given_tests": []}
+{"task_id": "HumanEval/118", "entry_point": "get_closest_vowel", "given_tests": []}
+{"task_id": "HumanEval/119", "entry_point": "match_parens", "given_tests": []}
+{"task_id": "HumanEval/120", "entry_point": "maximum", "given_tests": []}
+{"task_id": "HumanEval/121", "entry_point": "solution", "given_tests": []}
+{"task_id": "HumanEval/122", "entry_point": "add_elements", "given_tests": []}
+{"task_id": "HumanEval/123", "entry_point": "get_odd_collatz", "given_tests": []}
+{"task_id": "HumanEval/124", "entry_point": "valid_date", "given_tests": []}
+{"task_id": "HumanEval/125", "entry_point": "split_words", "given_tests": []}
+{"task_id": "HumanEval/126", "entry_point": "is_sorted", "given_tests": []}
+{"task_id": "HumanEval/127", "entry_point": "intersection", "given_tests": []}
+{"task_id": "HumanEval/128", "entry_point": "prod_signs", "given_tests": ["assert prod_signs([]) == None == \"\"\""]}
+{"task_id": "HumanEval/129", "entry_point": "minPath", "given_tests": []}
+{"task_id": "HumanEval/130", "entry_point": "tri", "given_tests": []}
+{"task_id": "HumanEval/131", "entry_point": "digits", "given_tests": []}
+{"task_id": "HumanEval/132", "entry_point": "is_nested", "given_tests": []}
+{"task_id": "HumanEval/133", "entry_point": "sum_squares", "given_tests": []}
+{"task_id": "HumanEval/134", "entry_point": "check_if_last_char_is_a_letter", "given_tests": []}
+{"task_id": "HumanEval/135", "entry_point": "can_arrange", "given_tests": []}
+{"task_id": "HumanEval/136", "entry_point": "largest_smallest_integers", "given_tests": []}
+{"task_id": "HumanEval/137", "entry_point": "compare_one", "given_tests": []}
+{"task_id": "HumanEval/138", "entry_point": "is_equal_to_sum_even", "given_tests": []}
+{"task_id": "HumanEval/139", "entry_point": "special_factorial", "given_tests": ["assert special_factorial(4) == 288"]}
+{"task_id": "HumanEval/140", "entry_point": "fix_spaces", "given_tests": []}
+{"task_id": "HumanEval/141", "entry_point": "file_name_check", "given_tests": []}
+{"task_id": "HumanEval/142", "entry_point": "sum_squares", "given_tests": []}
+{"task_id": "HumanEval/143", "entry_point": "words_in_sentence", "given_tests": []}
+{"task_id": "HumanEval/144", "entry_point": "simplify", "given_tests": []}
+{"task_id": "HumanEval/145", "entry_point": "order_by_points", "given_tests": ["assert order_by_points([]) == [] == \"\"\""]}
+{"task_id": "HumanEval/146", "entry_point": "specialFilter", "given_tests": []}
+{"task_id": "HumanEval/147", "entry_point": "get_max_triples", "given_tests": []}
+{"task_id": "HumanEval/148", "entry_point": "bf", "given_tests": []}
+{"task_id": "HumanEval/149", "entry_point": "sorted_list_sum", "given_tests": []}
+{"task_id": "HumanEval/150", "entry_point": "x_or_y", "given_tests": []}
+{"task_id": "HumanEval/151", "entry_point": "double_the_difference", "given_tests": []}
+{"task_id": "HumanEval/152", "entry_point": "compare", "given_tests": []}
+{"task_id": "HumanEval/153", "entry_point": "Strongest_Extension", "given_tests": []}
+{"task_id": "HumanEval/154", "entry_point": "cycpattern_check", "given_tests": []}
+{"task_id": "HumanEval/155", "entry_point": "even_odd_count", "given_tests": []}
+{"task_id": "HumanEval/156", "entry_point": "int_to_mini_roman", "given_tests": ["assert int_to_mini_roman(426) == 'cdxxvi' == \"\"\""]}
+{"task_id": "HumanEval/157", "entry_point": "right_angle_triangle", "given_tests": []}
+{"task_id": "HumanEval/158", "entry_point": "find_max", "given_tests": []}
+{"task_id": "HumanEval/159", "entry_point": "eat", "given_tests": []}
+{"task_id": "HumanEval/160", "entry_point": "do_algebra", "given_tests": []}
+{"task_id": "HumanEval/161", "entry_point": "solve", "given_tests": []}
+{"task_id": "HumanEval/162", "entry_point": "string_to_md5", "given_tests": ["assert string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62' == \"\"\""]}
+{"task_id": "HumanEval/163", "entry_point": "generate_integers", "given_tests": []}
