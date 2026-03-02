@@ -4,7 +4,7 @@ set -euo pipefail
 DEV_NODE="miku"
 ENV_NAME="${1:-paramm}"
 PROJECT_ROOT="/data/user/user06/ParamAgent"
-RUN_NAME="${2:-paramAgent_humaneval_llama8b_miku}"
+RUN_NAME="${2:-llama3_1_8b_humaneval_$(date +%Y%m%d_%H%M%S)}"
 
 ssh "$DEV_NODE" "bash -lc '
 set -euo pipefail

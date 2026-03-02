@@ -57,6 +57,10 @@ def get_args():
                         help="Limit the number of samples to process (for testing)")
     parser.add_argument("--fix_stage1_indices", action='store_true',
                         help="One-time fix: add original_index to existing first_stage_log.jsonl and skip Stage 1")
+    parser.add_argument("--phase1_only", action='store_true',
+                        help="Run only phase 1 (skip memory-augmented phase 2)")
+    parser.add_argument("--global_mem_bank_path", type=str, default="",
+                        help="Optional global memory bank pkl used for phase2 retrieval")
     args = parser.parse_args()
     return args
 
@@ -70,15 +74,15 @@ def strategy_factory(strategy: str):
         return kwargs_wrapper
 
     if strategy == "simple":
-        return kwargs_wrapper_gen(run_simple, delete_keys=["expansion_factor"])
+        return kwargs_wrapper_gen(run_simple, delete_keys=["expansion_factor", "phase1_only", "global_mem_bank_path"])
     elif strategy == "dot":
         return kwargs_wrapper_gen(run_dot, delete_keys=["expansion_factor"])
     elif strategy == "dot_bank":
-        return kwargs_wrapper_gen(run_dot_bank, delete_keys=["expansion_factor"])
+        return kwargs_wrapper_gen(run_dot_bank, delete_keys=["expansion_factor", "phase1_only", "global_mem_bank_path"])
     elif strategy == "reflexion":
-        return kwargs_wrapper_gen(run_reflexion, delete_keys=["expansion_factor"])
+        return kwargs_wrapper_gen(run_reflexion, delete_keys=["expansion_factor", "phase1_only", "global_mem_bank_path"])
     elif strategy == "test-acc":
-        return kwargs_wrapper_gen(run_test_acc, delete_keys=["expansion_factor", "max_iters"])
+        return kwargs_wrapper_gen(run_test_acc, delete_keys=["expansion_factor", "max_iters", "phase1_only", "global_mem_bank_path"])
     else:
         raise ValueError(f"Strategy `{strategy}` is not supported")
 
@@ -178,7 +182,9 @@ pass@k: {args.pass_at_k}
             mistake_json_file=mistake_json_file,
             inner_iter=args.inner_iter,
             dataset_type=dataset_type,
-            fix_stage1_indices=args.fix_stage1_indices
+            fix_stage1_indices=args.fix_stage1_indices,
+            phase1_only=args.phase1_only,
+            global_mem_bank_path=args.global_mem_bank_path
         )
     else:
         run_strategy(
@@ -197,7 +203,9 @@ pass@k: {args.pass_at_k}
             pitfall_agent=PitfallAgent,
             mistake_json_file=mistake_json_file,
             inner_iter=args.inner_iter,
-            dataset_type=dataset_type
+            dataset_type=dataset_type,
+            phase1_only=args.phase1_only,
+            global_mem_bank_path=args.global_mem_bank_path
         )        
 
     print(f"Done! Check out the logs in `{log_path}`")

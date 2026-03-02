@@ -61,6 +61,13 @@ def _disable_unsupported_socks_proxy() -> None:
 def get_relay_api_keys() -> List[str]:
     """Collect OpenAI/relay keys from env in priority order."""
     _load_dotenv_if_present()
+    # Optional explicit key pool for sharded workers, e.g. "k1,k2"
+    key_pool = os.getenv("OPENAI_API_KEYS", "").strip()
+    if key_pool:
+        keys = [k.strip() for k in key_pool.split(",") if k.strip()]
+        if keys:
+            return keys
+
     keys: List[str] = []
     primary = os.getenv("OPENAI_API_KEY")
     if primary:

@@ -121,6 +121,8 @@ def run_dot(
     inner_iter: int = 5,
     dataset_type: str = 'humaneval',
     fix_stage1_indices: bool = False,
+    phase1_only: bool = False,
+    global_mem_bank_path: str = "",
 ) -> None:
     exe = executor_factory(language, is_leet=is_leetcode)
     gen = generator_factory(language)
@@ -551,6 +553,10 @@ def run_dot(
     # Snapshot the entire first-stage log to a new JSONL
     write_jsonl(first_stage_json, logs, append=False)
     print(f"[info] First-stage log saved to: {first_stage_json} (n={len(logs)})")
+
+    if phase1_only:
+        print("[info] phase1_only=True, skipping second pass.")
+        return
     
     print(logs[0].keys())
     # Filter out items that have stage2=True (keep only first-pass failures)
@@ -558,6 +564,20 @@ def run_dot(
                       if not rec.get("is_solved", False) 
                       and not rec.get("stage2", False)]
     print(f"number of failed problems: {len(failed_problems)}")
+
+    global_positive_trajectories = []
+    if global_mem_bank_path:
+        if os.path.exists(global_mem_bank_path):
+            try:
+                with open(global_mem_bank_path, "rb") as f:
+                    global_mb = pkl.load(f)
+                global_positive_trajectories = global_mb.get("positive_trajectories", [])
+                print(f"[info] Loaded global mem bank: {global_mem_bank_path} "
+                      f"(positive={len(global_positive_trajectories)})")
+            except Exception as e:
+                print(f"[warn] Failed to load global mem bank `{global_mem_bank_path}`: {e}")
+        else:
+            print(f"[warn] Global mem bank not found: {global_mem_bank_path}")
 
     # Load the complete logs and maintain a copy for updates
     logs_copy = read_jsonl(log_path)
@@ -617,12 +637,16 @@ def run_dot(
 
                 # Retrieve similar positive trajectories based on prompt embedding
                 curr_emb = get_openai_embedding([_programming_prompt_string(prompt)])
-                top_k_indices, _ = get_top_k_closest(
-                    memory_bank["positive_trajectories"],
-                    curr_emb[:, None],
-                    k=1,
-                )
-                closest = [memory_bank["positive_trajectories"][idx] for idx in top_k_indices] if len(top_k_indices) else []
+                retrieval_pool = global_positive_trajectories + memory_bank["positive_trajectories"]
+                if len(retrieval_pool) > 0:
+                    top_k_indices, _ = get_top_k_closest(
+                        retrieval_pool,
+                        curr_emb[:, None],
+                        k=1,
+                    )
+                    closest = [retrieval_pool[idx] for idx in top_k_indices] if len(top_k_indices) else []
+                else:
+                    closest = []
 
                 # First attempt with memory-augmented prompt
                 augmented_prompt = (
@@ -731,8 +755,9 @@ def run_dot(
                         print()
 
                         # Reflection-conditioned retrieval
+                        retrieval_pool = global_positive_trajectories + memory_bank["positive_trajectories"]
                         filtered_trajs = [
-                            traj for traj in memory_bank["positive_trajectories"]
+                            traj for traj in retrieval_pool
                             if "reflection_embedding" in traj.keys()
                         ]
                         
@@ -747,14 +772,17 @@ def run_dot(
                             closest_ref_traj = filtered_trajs[top_idx[0]] if len(top_idx) else None
                         else:
                             # Fallback to prompt similarity
-                            top_idx, _ = get_top_k_closest(
-                                memory_bank["positive_trajectories"],
-                                curr_emb[:, None],
-                                k=1,
-                            )
-                            closest_ref_traj = (
-                                memory_bank["positive_trajectories"][top_idx[0]] if len(top_idx) else None
-                            )
+                            if len(retrieval_pool) > 0:
+                                top_idx, _ = get_top_k_closest(
+                                    retrieval_pool,
+                                    curr_emb[:, None],
+                                    k=1,
+                                )
+                                closest_ref_traj = (
+                                    retrieval_pool[top_idx[0]] if len(top_idx) else None
+                                )
+                            else:
+                                closest_ref_traj = None
 
                         few_shot_reflexion_block = (
                             _compose_programming_reflexion_few_shot(closest_ref_traj)
