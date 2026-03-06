@@ -3,7 +3,10 @@ import argparse
 import json
 import os
 import pickle
+from datetime import datetime
 from typing import Dict, List, Tuple
+
+from executors.py_executor import PyExecutor
 
 
 def read_jsonl(path: str) -> List[dict]:
@@ -71,11 +74,38 @@ def merge_failed(paths: List[str]) -> List[dict]:
     return out
 
 
+def recompute_solved(rows: List[dict], timeout: int, include_prompt_context: bool) -> int:
+    exe = PyExecutor()
+    solved = 0
+    for rec in rows:
+        entry_point = rec.get("entry_point")
+        solution = rec.get("solution")
+        test_code = rec.get("test")
+        if not (entry_point and isinstance(solution, str) and isinstance(test_code, str)):
+            rec["is_solved_reval"] = False
+            continue
+        candidate = solution
+        if include_prompt_context and isinstance(rec.get("prompt"), str):
+            candidate = rec["prompt"] + "\n" + solution
+        ok = exe.evaluate(entry_point, candidate, test_code, timeout=timeout)
+        rec["is_solved_reval"] = ok
+        solved += int(ok)
+    return solved
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run_root", required=True, help="Run root created by run_phase1_sharded_miku.sh")
     parser.add_argument("--dataset_path", default="benchmarks/humaneval_full.jsonl")
     parser.add_argument("--num_workers", type=int, default=24)
+    parser.add_argument("--eval_timeout", type=int, default=10)
+    parser.add_argument(
+        "--no_include_prompt_context",
+        action="store_false",
+        dest="include_prompt_context",
+        help="Disable prompt+solution evaluation context (default: enabled).",
+    )
+    parser.set_defaults(include_prompt_context=True)
     args = parser.parse_args()
 
     workers_root = os.path.join(args.run_root, "workers")
@@ -152,6 +182,22 @@ def main() -> None:
     }
     with open(summary_out, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
+
+    phase1_solved = recompute_solved(
+        merged_first_stage_sorted,
+        timeout=args.eval_timeout,
+        include_prompt_context=args.include_prompt_context,
+    )
+    phase1_acc = round((phase1_solved / len(dataset_rows) * 100.0), 2) if dataset_rows else 0.0
+    results_txt_path = os.path.join(args.run_root, "results.txt")
+    with open(results_txt_path, "w", encoding="utf-8") as f:
+        f.write(f"run_root: {args.run_root}\n")
+        f.write(f"updated_at: {datetime.now().isoformat(timespec='seconds')}\n")
+        f.write(f"phase1_solved: {phase1_solved}/{len(dataset_rows)}\n")
+        f.write(f"phase1_acc: {phase1_acc}%\n")
+        f.write("phase2_solved: N/A\n")
+        f.write("phase2_acc: N/A\n")
+        f.write(f"merged_phase1_dir: {merged_root}\n")
 
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 

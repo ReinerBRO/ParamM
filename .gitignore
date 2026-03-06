@@ -4,5 +4,24 @@ __pycache__/
 *.pyc
 .env
 .env.*
+.pytest_cache/
+*.pid
+.yunwu
+*.backup_*
+
+# Generated research artifacts and run outputs
+*.jsonl
+*.json
+*.log
+*.pt
+*.ckpt
+slurm-*.out
+ckpt/
+ckpts/
+checkpoints/
+/data/
+/logs/
+/results/
 results/
+/results_user/
 .worktrees/
