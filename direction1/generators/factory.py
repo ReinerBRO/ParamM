@@ -20,6 +20,7 @@ from .model import (
     Qwen3_70B,
     Qwen_1dot5B,
     Qwen2_1dot5B,
+    Qwen2dot5_1dot5B,
     GPT_OSS_20B,
 )
 
@@ -95,6 +96,9 @@ def model_factory(model_name: str) -> ModelBase:
     if model_name == "qwen2_1.5b":
         print("using Qwen2 1.5B (arize-ai)")
         return Qwen2_1dot5B()
+    if model_name == "qwen2.5_1.5b":
+        print("using Qwen2.5 1.5B")
+        return Qwen2dot5_1dot5B()
     if model_name.startswith("text-davinci"):
         return GPTDavinci(model_name)
     raise ValueError(f"Invalid model name: {model_name}")
