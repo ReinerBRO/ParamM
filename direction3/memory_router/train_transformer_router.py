@@ -19,6 +19,11 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+try:
+    import torch_npu  # type: ignore[import-not-found]  # noqa: F401
+except ImportError:
+    torch_npu = None
+
 from memory_router.enhanced_features import (
     build_transformer_router_input,
     CANDIDATE_FEATURE_DIM,
@@ -124,11 +129,22 @@ def _read_jsonl(path: str) -> List[Dict[str, Any]]:
     return rows
 
 
+def _select_device() -> tuple[str, bool]:
+    """Select the best available accelerator backend."""
+    if torch_npu is not None and hasattr(torch, "npu") and torch.npu.is_available():
+        device = "npu:0"
+        torch.npu.set_device(device)
+        return device, False
+    if torch.cuda.is_available():
+        return "cuda", True
+    return "cpu", False
+
+
 def _run_epoch(
     model: TransformerRouter,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
-    device: torch.device,
+    device: str,
     train: bool,
 ) -> Dict[str, float]:
     """Run one epoch of training or validation."""
@@ -174,11 +190,15 @@ def _run_epoch(
 
 def train(args: argparse.Namespace) -> Dict[str, Any]:
     """Main training function."""
+    device, pin_memory = _select_device()
+
     # Set random seeds
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if torch.cuda.is_available():
+    if device.startswith("npu") and hasattr(torch, "npu"):
+        torch.npu.manual_seed_all(args.seed)
+    elif torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
     # Load data
@@ -206,18 +226,17 @@ def train(args: argparse.Namespace) -> Dict[str, Any]:
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=0,
-        pin_memory=True,
+        pin_memory=pin_memory,
     )
     val_loader = DataLoader(
         val_ds,
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=0,
-        pin_memory=True,
+        pin_memory=pin_memory,
     )
 
     # Create model
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     model = TransformerRouter(

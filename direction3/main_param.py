@@ -67,6 +67,10 @@ def get_args():
                         help="Minimum router confidence; otherwise fallback to fixed retrieval")
     parser.add_argument("--router_ckpt_path", type=str, default="",
                         help="Router checkpoint path for online inference")
+    parser.add_argument("--shard_id", type=int, default=None,
+                        help="Shard ID for parallel execution (0-indexed)")
+    parser.add_argument("--shard_count", type=int, default=None,
+                        help="Total number of shards for parallel execution")
     args = parser.parse_args()
     return args
 
@@ -130,6 +134,14 @@ pass@k: {args.pass_at_k}
             f"Dataset path `{args.dataset_path}` is not supported")
 
     print(f"Loaded {len(dataset)} examples")
+
+    # Apply sharding if specified
+    if args.shard_id is not None and args.shard_count is not None:
+        if args.shard_id < 0 or args.shard_id >= args.shard_count:
+            raise ValueError(f"shard_id must be in range [0, {args.shard_count})")
+        # Shard the dataset
+        dataset = [item for i, item in enumerate(dataset) if i % args.shard_count == args.shard_id]
+        print(f"Shard {args.shard_id}/{args.shard_count}: processing {len(dataset)} examples")
 
     # Limit dataset size if num_samples is specified
     if args.num_samples is not None and args.num_samples > 0:

@@ -98,6 +98,7 @@ scontrol show config | egrep 'GresTypes|SelectType'
 ### 2.1.1 Dev Node 固定信息（本环境）
 - Dev Node 资源：`4 张 Ascend 910`，每张卡 `2 个 chip`，合计 `8 个 chip`。
 - 调度建议：默认一个任务独占一个 Dev Node。
+- 可用节点：`miku`、`yui`、`mutsumi`、`eren`
 
 模板 A（`miku`）：
 ```bash
@@ -137,6 +138,92 @@ done
 EOS
 ```
 
+模板 C（`mutsumi`）：
+```bash
+DEV_NODE="mutsumi"
+ssh "$DEV_NODE" "hostname"
+
+ssh "$DEV_NODE" 'bash -s' <<'EOS'
+export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64/common:${LD_LIBRARY_PATH}"
+npu-smi info -l | awk -F: '
+  /NPU ID/ {gsub(/ /,"",$2); n=$2}
+  /Chip Count/ {gsub(/ /,"",$2); c=$2+0; for(i=0;i<c;i++) print n, i}
+' | while read -r npu chip; do
+  out="$(npu-smi info -t usages -i "$npu" -c "$chip" 2>/dev/null || true)"
+  hbm="$(awk -F: "/HBM Usage Rate\\(%\\)/{gsub(/ /,\"\",$2);print $2;exit}" <<< "$out")"
+  util="$(awk -F: "/NPU Utilization\\(%\\)/{gsub(/ /,\"\",$2);print $2;exit}" <<< "$out")"
+  echo "npu${npu}_chip${chip} hbm=${hbm:-NA}% util=${util:-NA}%"
+done
+EOS
+```
+
+模板 D（`eren`）：
+```bash
+DEV_NODE="eren"
+ssh "$DEV_NODE" "hostname"
+
+ssh "$DEV_NODE" 'bash -s' <<'EOS'
+export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64/common:${LD_LIBRARY_PATH}"
+npu-smi info -l | awk -F: '
+  /NPU ID/ {gsub(/ /,"",$2); n=$2}
+  /Chip Count/ {gsub(/ /,"",$2); c=$2+0; for(i=0;i<c;i++) print n, i}
+' | while read -r npu chip; do
+  out="$(npu-smi info -t usages -i "$npu" -c "$chip" 2>/dev/null || true)"
+  hbm="$(awk -F: "/HBM Usage Rate\\(%\\)/{gsub(/ /,\"\",$2);print $2;exit}" <<< "$out")"
+  util="$(awk -F: "/NPU Utilization\\(%\\)/{gsub(/ /,\"\",$2);print $2;exit}" <<< "$out")"
+  echo "npu${npu}_chip${chip} hbm=${hbm:-NA}% util=${util:-NA}%"
+done
+EOS
+```
+
+### 2.1.2 共享目录产出必须可删除（强制规则，给 AI）
+- 目标：凡是写入 `/data/user/user06/...` 这类共享目录的结果，最终都必须由本地 `user06` 删除得掉。
+- 判定标准：输出目录及其内部新建文件/子目录，属主属组必须与 `/data/user/user06` 一致。
+- AI 必须动态读取 owner，不要把 UID/GID 写死在脚本里：
+
+```bash
+OWNER_REF_DIR="/data/user/user06"
+OWNER_UID="$(stat -c '%u' "$OWNER_REF_DIR")"
+OWNER_GID="$(stat -c '%g' "$OWNER_REF_DIR")"
+echo "owner=${OWNER_UID}:${OWNER_GID}"
+```
+
+- AI 不允许先让 `root` 建结果目录再事后补 `chown`。后台 worker 会继续生成新文件，这种做法不能保证最终可删。
+- AI 必须修正 `RUN_ROOT` 整条父目录链，而不是只修最后一级父目录；只要中间某一级目录仍是 `root` 且不可写，本地删除仍可能失败。
+- AI 必须在正式启动前，先把结果命名空间目录和 `RUN_ROOT` 以 owner 身份准备好。对已存在但 owner 错误的目录，也要先修正 owner 再启动：
+
+```bash
+ensure_owner_dir() {
+  install -d -m 755 -o "$OWNER_UID" -g "$OWNER_GID" "$1"
+}
+
+ensure_owner_dir "<PROJECT_ROOT>/results"
+ensure_owner_dir "<PROJECT_ROOT>/results/mbpp"
+ensure_owner_dir "<PROJECT_ROOT>/results/mbpp/paramAgent"
+ensure_owner_dir "<RUN_ROOT>"
+```
+
+- 如果当前计算节点登录身份不是 owner，例如 `ssh eren` 实际落到 `root`，那么所有会写共享目录的长生命周期进程都必须先降权再启动。
+- AI 必须优先使用 `setpriv`，并把 `HOME`、`USER`、`LOGNAME` 一并切到共享目录 owner 语义：
+
+```bash
+run_as_owner() {
+  setpriv --reuid="$OWNER_UID" --regid="$OWNER_GID" --clear-groups \
+    env HOME="$OWNER_REF_DIR" USER="user06" LOGNAME="user06" \
+    LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" \
+    PYTHONPATH="${PYTHONPATH:-}" \
+    "$@"
+}
+```
+
+- 如果 `id -u` 与 `OWNER_UID` 不一致且机器上没有 `setpriv`，AI 必须停止并报错，不能继续启动任务。
+- 启动后必须立即做 owner 验证；若验证失败，AI 必须停止任务并报告：
+
+```bash
+stat -c '%u:%g %n' "<RUN_ROOT>"
+find "<RUN_ROOT>" -maxdepth 2 -printf '%u:%g %p\n' | sed -n '1,20p'
+```
+
 ### 2.2 CPU 任务（Slurm 模板）
 `slurm/job_cpu.sbatch`：
 ```bash
@@ -172,15 +259,82 @@ squeue -u $USER
 ### 2.3 NPU 任务（Dev Node 直连）
 NPU 任务统一走 Dev Node 直连，不使用 Slurm：
 ```bash
-ssh "$DEV_NODE"
-cd <PROJECT_ROOT>
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
-source <MINICONDA_HOME>/etc/profile.d/conda.sh
-conda activate <ENV_NAME>
+DEV_NODE="<miku|yui|mutsumi|eren>"
+PROJECT_ROOT="<PROJECT_ROOT>"
+ENV_NAME="<ENV_NAME>"
+RUN_SCRIPT="<RUN_SCRIPT>"
+RUN_ROOT="<RUN_ROOT>"
+OWNER_REF_DIR="/data/user/user06"
 
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3
-nohup bash <RUN_SCRIPT>.sh > logs/job_$(date +%F_%H%M%S).log 2>&1 &
+ssh "$DEV_NODE" 'bash -s' <<EOS
+set -euo pipefail
+PROJECT_ROOT="$PROJECT_ROOT"
+ENV_NAME="$ENV_NAME"
+RUN_SCRIPT="$RUN_SCRIPT"
+RUN_ROOT="$RUN_ROOT"
+OWNER_REF_DIR="$OWNER_REF_DIR"
+
+OWNER_UID="\$(stat -c '%u' "\$OWNER_REF_DIR")"
+OWNER_GID="\$(stat -c '%g' "\$OWNER_REF_DIR")"
+
+ensure_owner_dir() {
+  install -d -m 755 -o "\$OWNER_UID" -g "\$OWNER_GID" "\$1"
+}
+
+ensure_owner_path() {
+  local target="\$1"
+  local rel="\${target#"\$PROJECT_ROOT"/}"
+  local path="\$PROJECT_ROOT"
+  IFS='/' read -r -a parts <<< "\$rel"
+  for part in "\${parts[@]}"; do
+    [ -n "\$part" ] || continue
+    path="\$path/\$part"
+    ensure_owner_dir "\$path"
+  done
+}
+
+if [ "\$(id -u)" = "\$OWNER_UID" ]; then
+  run_as_owner() { "\$@"; }
+else
+  command -v setpriv >/dev/null 2>&1 || {
+    echo "[ERROR] current uid=\$(id -u), owner uid=\$OWNER_UID, but setpriv is unavailable"
+    exit 1
+  }
+  run_as_owner() {
+    setpriv --reuid="\$OWNER_UID" --regid="\$OWNER_GID" --clear-groups \
+      env HOME="\$OWNER_REF_DIR" USER="user06" LOGNAME="user06" \
+      LD_LIBRARY_PATH="\${LD_LIBRARY_PATH:-}" \
+      PYTHONPATH="\${PYTHONPATH:-}" \
+      "\$@"
+  }
+fi
+
+ensure_owner_path "\$PROJECT_ROOT/results"
+ensure_owner_path "\$RUN_ROOT"
+
+cd "\$PROJECT_ROOT"
+export LD_LIBRARY_PATH="\${LD_LIBRARY_PATH:-}"
+export PYTHONPATH="\${PYTHONPATH:-}"
+source /usr/local/Ascend/ascend-toolkit/set_env.sh || true
+source <MINICONDA_HOME>/etc/profile.d/conda.sh
+
+run_as_owner bash -lc '
+  set -euo pipefail
+  source <MINICONDA_HOME>/etc/profile.d/conda.sh
+  conda activate '"\$ENV_NAME"'
+  unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY
+  export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3
+  nohup bash '"\$RUN_SCRIPT"' > '"\$RUN_ROOT"'/launcher_\$(date +%F_%H%M%S).log 2>&1 &
+'
+
+stat -c "%u:%g %n" "\$RUN_ROOT"
+find "\$RUN_ROOT" -maxdepth 2 -printf "%u:%g %p\n" | sed -n "1,20p"
+EOS
 ```
+
+补充说明：
+- `eren` 当前常见现象是 `ssh eren` 直接登录为 `root`，所以这台机器上更要严格执行上面的 owner-safe 启动流程。
+- 如果项目在 `eren` 上导入 `torch` 时触发 `torch_npu` 自动加载失败，可在 `run_as_owner` 中额外加上 `TORCH_DEVICE_BACKEND_AUTOLOAD=0`，但这属于运行时兼容性问题，不替代 owner-safe 启动规则。
 
 ## 3. NPU 适配注意事项
 

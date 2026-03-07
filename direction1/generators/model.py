@@ -431,6 +431,12 @@ class Qwen2_1dot5B(TogetherAIChat):
         super().__init__(model_id)
 
 
+class Qwen2dot5_1dot5B(TogetherAIChat):
+    def __init__(self):
+        model_id = "Qwen/Qwen2.5-1.5B-Instruct"
+        super().__init__(model_id)
+
+
 # class Qwen_1dot5B(ModelBase):
 #     def __init__(self, model_name: str = "deepseek-r1-distill-qwen-1.5b"):
 #         super().__init__(model_name)
