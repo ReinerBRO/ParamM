@@ -6,6 +6,8 @@ set -euo pipefail
 #   bash npu.sh
 #   bash npu.sh miku
 #   bash npu.sh yui
+#   bash npu.sh mutsumi
+#   bash npu.sh eren
 #   bash npu.sh all
 #   bash npu.sh yui 5        # refresh every 5 seconds
 #   bash npu.sh 5            # backward-compatible: all nodes, refresh 5s
@@ -13,12 +15,16 @@ set -euo pipefail
 NPU_MAX_CHIPS="${NPU_MAX_CHIPS:-8}"
 TARGET_ARG="${1:-all}"
 REFRESH_SEC="${2:-0}"
+ALL_TARGETS=(miku yui mutsumi eren)
 
 # Backward compatibility: `bash npu.sh 5` -> all nodes with refresh.
 if [[ "${TARGET_ARG}" =~ ^[0-9]+$ ]]; then
   REFRESH_SEC="${TARGET_ARG}"
   TARGET_ARG="all"
 fi
+
+# Accept `mutsumi.sh` / `eren.sh` style target arguments for convenience.
+TARGET_ARG="${TARGET_ARG%.sh}"
 
 if ! [[ "${REFRESH_SEC}" =~ ^[0-9]+$ ]]; then
   echo "[npu.sh] invalid refresh seconds: ${REFRESH_SEC}" >&2
@@ -28,13 +34,13 @@ fi
 TARGETS=()
 case "${TARGET_ARG}" in
   all|"")
-    TARGETS=(miku yui)
+    TARGETS=("${ALL_TARGETS[@]}")
     ;;
-  miku|yui)
+  miku|yui|mutsumi|eren)
     TARGETS=("${TARGET_ARG}")
     ;;
   *)
-    echo "[npu.sh] usage: bash npu.sh [all|miku|yui] [refresh_sec]" >&2
+    echo "[npu.sh] usage: bash npu.sh [all|miku|yui|mutsumi|eren] [refresh_sec]" >&2
     exit 1
     ;;
 esac
